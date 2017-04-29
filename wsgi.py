@@ -208,7 +208,7 @@ def audio(path):
 
 
 # Main:
-application = WSGIServer(("0.0.0.0", 8080), wsgi, handler_class = WebSocketHandler)
+application = WSGIServer(("0.0.0.0", 80), wsgi, handler_class = WebSocketHandler)
 
 if __name__ == "__main__":
 	application.serve_forever()
