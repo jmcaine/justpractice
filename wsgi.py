@@ -15,7 +15,8 @@ from geventwebsocket import WebSocketError
 from geventwebsocket.handler import WebSocketHandler
 
 
-k_root_path = '/home/jmcaine/dev/projects/arithmetic/'
+#k_root_path = '/home/jmcaine/dev/projects/arithmetic/'
+k_root_path = './'
 k_js_path = k_root_path + 'js'
 k_audio_path = k_root_path + 'audio'
 
