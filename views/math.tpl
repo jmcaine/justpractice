@@ -1,6 +1,6 @@
 <html>
 <head>
-<script>var ws = new WebSocket("ws://localhost:8080/{{ws_method}}");</script>
+<script>var ws = new WebSocket("ws://dry-dusk-90506.herokuapp.com/{{ws_method}}");</script>
 <script>var audio_count = {{audio_count}};</script>
 <script defer="defer" type="application/javascript;version=1.7" src="js/math_ws.js"></script>
 </head>
