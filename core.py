@@ -99,7 +99,8 @@ def practice_operation(user, min_x, max_x, min_y, max_y, time, practicer_functio
 	if not dbs:
 		dbs = session_maker()
 	# Get or add pertinent addition records:
-	q = dbs.query(db.Performance).filter_by(user = user).filter(db.Performance.x >= min_x).filter(db.Performance.x <= max_x).filter(db.Performance.y >= min_y).filter(db.Performance.y <= max_y).filter(db.Performance.operation == operation).order_by(db.Performance.recent_speed_ms.desc()).order_by(db.Performance.id)
+	#q = dbs.query(db.Performance).filter_by(user = user).filter(db.Performance.x >= min_x).filter(db.Performance.x <= max_x).filter(db.Performance.y >= min_y).filter(db.Performance.y <= max_y).filter(db.Performance.operation == operation).order_by(db.Performance.recent_speed_ms.desc()).order_by(db.Performance.id)
+	q = dbs.query(db.Performance).filter_by(user = user).filter(db.Performance.x >= min_x).filter(db.Performance.x <= max_x).filter(db.Performance.y >= min_y).filter(db.Performance.y <= max_y).filter(db.Performance.operation == operation).order_by(db.Performance.id)
 	records = q.all()
 	existing_combos = [(r.x, r.y) for r in records]
 	for combo in [(a, b) for a in range(min_x, max_x+1) for b in range(min_y, max_y+1)]: # all combos as 2-tuples
