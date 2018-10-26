@@ -1,16 +1,10 @@
 <html>
-<head>
-<script>var ws = new WebSocket("wss://" + location.host + "/{{ws_method}}");</script>
-<script>var audio_count = {{audio_count}};</script>
-<script defer="defer" type="application/javascript;version=1.7" src="js/math_ws.js"></script>
-</head>
-
 <body>
 
 <div id="login">
 <p id="login_detail"></p>
 <p>Username: <input type="text" id="username" size="24" /> </p>
-<p>Password: <input type="text" id="password" size="24" /> </p>
+<p>Password: <input type="password" id="password" size="24" /> </p>
 <p><button id="login_go">Log in</button> </p>
 </div>
 
@@ -35,4 +29,9 @@
 </div>
 
 </body>
+
+<script>var audio_count = {{audio_count}};</script>
+<script>var ws = new WebSocket("ws://" + location.host + "/{{ws_method}}");</script>
+<script src="js/math_ws.js"></script>
+
 </html>

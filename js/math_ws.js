@@ -12,7 +12,7 @@ var timer = document.getElementById("timer");
 var correct_answer_flash = document.getElementById("correct_answer_flash");
 var target_time = null;
 var interval;
-var fail_delay = 1500;
+var fail_delay = 1500; // parameterize?
 var data = null;
 var done = false;
 
@@ -94,6 +94,7 @@ ws.onmessage = function(event) {
 	{
 		login_div.style.display = 'none';
 		math_div.style.display = 'block';
+		answer.disabled = false;
 		answer.value = "";
 		answer.focus();
 		prompt.innerHTML = data.prompt;
@@ -108,6 +109,8 @@ function finish_correct_answer_flash() {
 };
 
 function submit() {
+	console.log('submit');
+	answer.disabled = true;
 	go_button.disabled = true; // until we get the next 'math' message (problem)
 	which = Math.floor(Math.random() * audio_count);
 	if (data.answer == answer.value) {
@@ -116,7 +119,7 @@ function submit() {
 	}
 	else {
 		/* Here we need to FIRST show the correct answer for fail_delay amount of time, THEN
-		send the result over the socket, along with the delay (for the server, which is
+		send the result over the cet, along with the delay (for the server, which is
 		responsible for timing, to subtract off.  If we just send our result message on the
 		socket and then sleep, the server will push the next problem to us immediately, but
 		will unknowingly be timing this fail_delay correct-answer-display time and counting it
@@ -129,7 +132,7 @@ function submit() {
 
 
 answer.onkeydown = function(event) {
-	if (event.keyCode == 13)
+	if (event.keyCode == 13 && !go_button.disabled)
 		submit();
 };
 

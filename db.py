@@ -3,14 +3,16 @@
 from enum import Enum as PyEnum
 from os import urandom
 import hashlib
+from datetime import datetime
 
 from sqlalchemy import create_engine
-from sqlalchemy import Column, Integer, String, Enum
+from sqlalchemy import Column, Integer, String, Enum, DateTime
 from sqlalchemy import UniqueConstraint, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker, relationship
 
+url = 'sqlite:///test.db' # deport!
 Base = declarative_base()
 
 class SABaseMixin(object):
@@ -20,11 +22,20 @@ class SABaseMixin(object):
 	def __tablename__(cls):
 		return cls.__name__.lower()
 
+# Alembic/migration note: used:
+#	alembic revision --autogenerate -m "initial tables"
+# as first pass in order to import the following tables as initial state
+# Then, for a new feature...
+#	alembic revision --autogenerate -m "new feature"
+# Then, of course:
+#	alembic upgrade head
+
 
 class User(SABaseMixin, Base):
 	username = Column(String, unique = True)
 	salt = Column(String)
 	password = Column(String)
+	email = Column(String)
 
 class Op(PyEnum):
 	input = 'input'
@@ -34,6 +45,7 @@ class Op(PyEnum):
 	division = '/'
 
 class Performance(SABaseMixin, Base):
+	timestamp = Column(DateTime, default=datetime.utcnow)
 	user_id = Column(Integer, ForeignKey('user.id'))
 	user = relationship('User', back_populates = 'performance')
 	x = Column(Integer)
@@ -66,7 +78,7 @@ class Bad_User_Auth(Descriptive_Exception):
 def create_db(engine):
 	Base.metadata.create_all(engine)
 
-def create_engine_sm(url = 'sqlite:///test.db', echo = True):
+def create_engine_sm(url = url, echo = True):
 	db_engine = create_engine(url, echo = echo)
 	session_maker = sessionmaker(bind = db_engine)
 	return (db_engine, session_maker)

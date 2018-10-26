@@ -1,23 +1,28 @@
 #!/usr/bin/python
 
-import core
-import db
-import json
-import os
-
-import bottle
+import bottle as b
 from bottle.ext import beaker
 
+from bods_util import add_flash, get_flash
 from gevent.pywsgi import WSGIServer
 
 # Note: pip install karellen-geventws for python3 support (see https://bitbucket.org/noppo/gevent-websocket/pull-requests/2/python3-support/diff) -- but I'm not sure we want this long-term... research history and trajectory of the official/original (https://bitbucket.org/noppo/gevent-websocket/) soon (but see also https://bitbucket.org/noppo/gevent-websocket/issues/76/status-of-this-project#comment-32752877)....
 from geventwebsocket import WebSocketError
 from geventwebsocket.handler import WebSocketHandler
 
+from voluptuous import Schema, All, MultipleInvalid, Required, ALLOW_EXTRA
+
+import logging
+import core
+import db
+import json
+import os
+import re
 
 #k_root_path = '/home/jmcaine/dev/projects/arithmetic/'
 k_root_path = './'
 k_js_path = k_root_path + 'js'
+k_css_path = k_root_path + 'css'
 k_audio_path = k_root_path + 'audio'
 
 
@@ -26,50 +31,138 @@ beaker_opts = {
     'session.cookie_expires': 30000,
     'session.auto': True
 }
-wsgi = bottle.Bottle()
+wsgi = b.Bottle()
 wsgi = beaker.middleware.SessionMiddleware(wsgi, beaker_opts, 'beaker.session')
-b = wsgi.app
+a = wsgi.app
 
-db_engine, session_maker = db.create_engine_sm('sqlite:///test.db', False)
+db_engine, session_maker = db.create_engine_sm(db.url, False)
 
 k_prompt = "Type in your answer.  Press Enter after each answer. (Don't use the mouse; it's too slow!)"
+
+logging.basicConfig(format = '[%(asctime)s] %(levelname)s: %(message)s', level = logging.DEBUG)
+log = logging.getLogger(__name__)
 
 def make_audios():
 	ac = ''
 	no_path = os.path.join(k_audio_path, 'no')
 	no_sources = os.listdir(no_path)[:10]
 	for x in range(len(no_sources)):
-		ac += bottle.template('audio_control', id = 'audio_no_%d' % (x + 1), source = os.path.join('audio', 'no', no_sources[x]))
+		ac += b.template('audio_control', id = 'audio_no_%d' % (x + 1), source = os.path.join('audio', 'no', no_sources[x]))
 	yes_path = os.path.join(k_audio_path, 'yes')
 	yes_sources = os.listdir(yes_path)[:10]
 	for x in range(len(yes_sources)):
-		ac += bottle.template('audio_control', id = 'audio_yes_%d' % (x + 1), source = os.path.join('audio', 'yes', yes_sources[x]))
+		ac += b.template('audio_control', id = 'audio_yes_%d' % (x + 1), source = os.path.join('audio', 'yes', yes_sources[x]))
 	return ac, len(no_sources)
 
-@b.route('/input')
-def input():
-	return bottle.template('math', ws_method = 'ws_input', prompt = k_prompt)
 
-@b.route('/add')
+# Short-cuts:
+# ------------------------------------------------------------
+
+#femplate = pass #!!!
+gurl = lambda name: a.get_url(name)
+
+# Validation:
+# ------------------------------------------------------------
+
+validation_messages = {
+	'username': "Username must be a single word (no spaces) made of letters and/or numbers.",
+	'email': "Email address must be a valid user@domain.xyz format.",
+	'password_match': "Password and password confirmation entries must be exactly the same.",
+}
+select_validation_messages = lambda keys: {key: validation_messages[key] for key in keys}
+
+v_username_pattern = re.compile(r'^[\w\d_]+$')
+v_email_pattern = re.compile(r'(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$)')
+
+def valid_regex(pattern, msg = None):
+	def f(v):
+		if pattern.match(str(v)):
+			return str(v)
+		raise Invalid(msg)
+	return f
+
+def passwords_must_match(passwords):
+	if passwords['password'] != passwords['password_confirmation']:
+		raise Invalid(validation_messages['password_match'])
+	return passwords
+
+# WSGI handlers:
+# ------------------------------------------------------------
+
+@a.hook('before_request')
+def setup_request():
+	if not hasattr(b.request, 'session'):
+		b.request.session = b.request.environ.get('beaker.session')
+
+@a.get
+def home():
+	return b.template('home')
+
+
+@a.get
+def new_user():
+	vms = select_validation_messages(('username', 'password_match', 'email'))
+	return b.template('new_user', vms = vms)
+
+@a.post
+def new_user_():
+	s = Schema({
+		Required('username'): valid_regex(v_username_pattern, msg = validation_messages['username']),
+		'email': valid_regex(v_email_pattern, msg = validation_messages['email']),
+	}, extra = ALLOW_EXTRA)
+	s2 = Schema(All({
+			Required('password'): str,
+			Required('password_confirmation'): str,
+		}, passwords_must_match,
+	), extra = ALLOW_EXTRA)
+	try:
+		# Validate:
+		p = b.request.forms.decode()
+		s(dict(p))
+		s2(dict(p))
+		# Save:
+		dbs = session_maker()
+		db.add_user(dbs, p.username, p.password) # email!!!
+		# Log in:
+		sess = b.request.environ.get('beaker.session')
+		sess['username'] = p.username
+		sess.save()
+		# Move on:
+		b.redirect(gurl('home'))
+	except MultipleInvalid as e:
+		add_flash(b.request, e.msg)
+		b.redirect(gurl('new_user'))
+
+
+@a.route
+def input():
+	return b.template('math', ws_method = 'ws_input', prompt = k_prompt)
+
+@a.route
 def add():
 	ac, no_source_length = make_audios()
-	return bottle.template('math', ws_method = 'ws_add', audio_controls = ac, audio_count = no_source_length, prompt = k_prompt)
+	return b.template('math', ws_method = 'ws_add', audio_controls = ac, audio_count = no_source_length, prompt = k_prompt)
 
-@b.route('/subtract')
+@a.route
 def subtract():
-	return bottle.template('math', ws_method = 'ws_subtract', prompt = k_prompt)
+	return b.template('math', ws_method = 'ws_subtract', prompt = k_prompt)
 
-@b.route('/multiply')
+@a.route
 def multiply():
 	ac, no_source_length = make_audios()
-	return bottle.template('math', ws_method = 'ws_multiply', audio_controls = ac, audio_count = no_source_length, prompt = k_prompt)
+	return b.template('math', ws_method = 'ws_multiply', audio_controls = ac, audio_count = no_source_length, prompt = k_prompt)
 
-@b.route('/divide')
+@a.route
 def divide():
-	return bottle.template('math', ws_method = 'ws_divide', prompt = k_prompt)
+	return b.template('math', ws_method = 'ws_divide', prompt = k_prompt)
 
+# Util classes:
+# ------------------------------------------------------------
 
 class Logout(Exception): pass
+
+# Practicer classes sent to core:
+# ------------------------------------------------------------
 
 class Practicer:
 	def __call__(self, record):
@@ -77,7 +170,7 @@ class Practicer:
 		message = json.loads(self.sock.receive())
 		if message['message'] == 'logout':
 			raise Logout()
-		# else:
+		# else: # message['message'] == 'result'...
 		print(message)#!!!
 		return (message['result'] == 'correct', message['delay'])
 
@@ -124,13 +217,16 @@ class Operation_Divide(Operation_Practicer):
 		self.sock.send(json.dumps({'message': 'math', 'prompt': '%d / %d:' % (record.x * record.y, record.x), 'answer': str(record.y)}))
 
 
+# ------------------------------------------------------------
+
+# util for websocket routes below:
 def _practice(practicer):
-	sock = bottle.request.environ.get('wsgi.websocket')
+	sock = b.request.environ.get('wsgi.websocket')
 	if not sock:
-		bottle.abort(400, 'Expected WebSocket request.')
+		b.abort(400, 'Expected WebSocket request.')
 
 	dbs = session_maker()
-	sess = bottle.request.environ.get('beaker.session')
+	sess = b.request.environ.get('beaker.session')
 	detail = ''
 
 	try:
@@ -169,46 +265,54 @@ def _practice(practicer):
 
 
 # WebSocket routes:
+# ------------------------------------------------------------
 
-@b.route('/ws_input')
+@a.route
 def ws_input():
 	_practice(Input_Practicer(0, 9, 30))
 
-@b.route('/ws_add')
+@a.route
 def ws_add():
 	_practice(Operation_Add(1, 7, 0, 7, 30, db.Op.addition))
 
-@b.route('/ws_subtract')
+@a.route
 def ws_subtract():
 	_practice(Operation_Subtract(1, 7, 0, 7, 30, db.Op.subtraction))
 
-@b.route('/ws_multiply')
+@a.route
 def ws_multiply():
 	#_practice(Operation_Multiply(1, 15, 0, 15, 30, db.Op.multiplication))
 	_practice(Operation_Multiply(2, 15, 1, 15, 30, db.Op.multiplication))
 
-@b.route('/ws_divide')
+@a.route
 def ws_divide():
 	_practice(Operation_Divide(1, 7, 0, 7, 30, db.Op.division))
 
-@b.route('/ws_all')
+@a.route
 def ws_all():
 	#TODO!!!
 	pass
 
 
 # Statics:
+# ------------------------------------------------------------
 
-@b.route('/js/<path:path>')
+@a.route('/js/<path:path>')
 def js(path):
-	return bottle.static_file(path, root = k_js_path)
+	return b.static_file(path, root = k_js_path)
 
-@b.route('/audio/<path:path>')
+@a.route('/css/<path:path>')
+def js(path):
+	return b.static_file(path, root = k_css_path)
+
+@a.route('/audio/<path:path>')
 def audio(path):
-	return bottle.static_file(path, root = k_audio_path)
+	return b.static_file(path, root = k_audio_path)
 
 
 # Main:
+# ------------------------------------------------------------
+
 #application = WSGIServer(("0.0.0.0", 80), wsgi, handler_class = WebSocketHandler)
 port = int(os.environ.get("PORT", 5000))
 application = WSGIServer(("0.0.0.0", port), wsgi, handler_class = WebSocketHandler)
