@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from geventwebsocket import WebSocketError
 from geventwebsocket.handler import WebSocketHandler
 
-from voluptuous import Schema, All, MultipleInvalid, Required, ALLOW_EXTRA
+from voluptuous import Schema, All, Invalid, MultipleInvalid, Required, ALLOW_EXTRA
 
 import logging
 import core
@@ -38,8 +38,6 @@ wsgi = beaker.middleware.SessionMiddleware(wsgi, beaker_opts, 'beaker.session')
 a = wsgi.app
 
 db_engine, session_maker = db.create_engine_sm(db.url, False)
-
-k_prompt = "Type in your answer.  Press Enter after each answer. (Don't use the mouse; it's too slow!)"
 
 logging.basicConfig(format = '[%(asctime)s] %(levelname)s: %(message)s', level = logging.DEBUG)
 log = logging.getLogger(__name__)
@@ -73,6 +71,11 @@ validation_messages = {
 }
 select_validation_messages = lambda keys: {key: validation_messages[key] for key in keys}
 
+k_new_user_vms = select_validation_messages(('username', 'password_match', 'email'))
+
+k_prompt = "Type in your answer.  Press Enter after each answer. (Don't use the mouse; it's too slow!)"
+k_user_exists = "Sorry, a user with that username already exists.  Try another, or, if you think that's you and you've forgotten your password, click 'Forgot Password' on the login page."
+
 v_username_pattern = re.compile(r'^[\w\d_]+$')
 v_email_pattern = re.compile(r'(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$)')
 
@@ -103,8 +106,7 @@ def home():
 
 @a.get
 def new_user():
-	vms = select_validation_messages(('username', 'password_match', 'email'))
-	return b.template('new_user', vms = vms)
+	return b.template('new_user', vms = k_new_user_vms)
 
 @a.post
 def new_user_():
@@ -126,17 +128,17 @@ def new_user_():
 		dbs = session_maker()
 		db.add_user(dbs, p.username, p.password, p.email)
 		# Log in:
-		sess = b.request.session = b.request.environ.get('beaker.session')
+		sess = b.request.session
 		sess['username'] = p.username
 		sess.save()
 		# Move on:
 		b.redirect(gurl('home'))
+#TODO: on redirect to home, indicate that there's no reason to show "I'm a new user..." if logged in!
 	except IntegrityError as e:
-		add_flash(b.request, "Sorry, a user with that username already exists.  Try another, or, if you think that's you and you've forgotten your password, click 'Forgot Password' on the login page.")
-		b.redirect(gurl('new_user'))
+#TODO: when re-presenting form, keep all old values (except password)
+		return b.template('new_user', vms = k_new_user_vms, flash = (k_user_exists,))
 	except MultipleInvalid as e:
-		add_flash(b.request, e.msg)
-		b.redirect(gurl('new_user'))
+		return b.template('new_user', vms = k_new_user_vms, flash = [error.msg for error in e.errors])
 
 
 @a.route
