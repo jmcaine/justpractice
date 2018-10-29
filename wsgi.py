@@ -122,9 +122,9 @@ def new_user_():
 		s2(dict(p))
 		# Save:
 		dbs = session_maker()
-		db.add_user(dbs, p.username, p.password) # email!!!
+		db.add_user(dbs, p.username, p.password, p.email)
 		# Log in:
-		sess = b.request.environ.get('beaker.session')
+		sess = b.request.session = b.request.environ.get('beaker.session')
 		sess['username'] = p.username
 		sess.save()
 		# Move on:

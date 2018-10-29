@@ -85,9 +85,9 @@ def create_engine_sm(url = url, echo = True):
 
 _hash = lambda password, salt: hashlib.pbkdf2_hmac('sha256', bytes(password, 'UTF-8'), salt, 100000)
 
-def add_user(dbs, username, password, commit = True):
+def add_user(dbs, username, password, email = None, commit = True):
 	salt = urandom(32)
-	dbs.add(User(username = username, salt = salt, password = _hash(password, salt)))
+	dbs.add(User(username = username, salt = salt, email = email, password = _hash(password, salt)))
 	if commit:
 		dbs.commit() # consider making sure autoflush is on, or calling flush(), or read http://skien.cc/blog/2014/02/06/sqlalchemy-and-race-conditions-follow-up/
 
