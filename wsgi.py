@@ -6,6 +6,8 @@ from bottle.ext import beaker
 from bods_util import add_flash, get_flash
 from gevent.pywsgi import WSGIServer
 
+from sqlalchemy.exc import IntegrityError
+
 # Note: pip install karellen-geventws for python3 support (see https://bitbucket.org/noppo/gevent-websocket/pull-requests/2/python3-support/diff) -- but I'm not sure we want this long-term... research history and trajectory of the official/original (https://bitbucket.org/noppo/gevent-websocket/) soon (but see also https://bitbucket.org/noppo/gevent-websocket/issues/76/status-of-this-project#comment-32752877)....
 from geventwebsocket import WebSocketError
 from geventwebsocket.handler import WebSocketHandler
@@ -129,6 +131,9 @@ def new_user_():
 		sess.save()
 		# Move on:
 		b.redirect(gurl('home'))
+	except IntegrityError as e:
+		add_flash(b.request, "Sorry, a user with that username already exists.  Try another, or, if you think that's you and you've forgotten your password, click 'Forgot Password' on the login page.")
+		b.redirect(gurl('new_user'))
 	except MultipleInvalid as e:
 		add_flash(b.request, e.msg)
 		b.redirect(gurl('new_user'))
