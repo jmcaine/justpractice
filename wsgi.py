@@ -101,8 +101,8 @@ def setup_request():
 
 @a.get
 def home():
-	return b.template('home')
-
+	sess = b.request.session
+	return b.template('home', username = sess.get('username'))
 
 @a.get
 def new_user():
@@ -174,7 +174,11 @@ class Logout(Exception): pass
 class Practicer:
 	def __call__(self, record):
 		self.send(record)
-		message = json.loads(self.sock.receive())
+		message = self.sock.receive()
+		if not message:
+			return False, 0 # odd corner-case; occurs when connection is closed, at least (as in, when user surfs away to /home)
+		#else:
+		message = json.loads(message)
 		if message['message'] == 'logout':
 			raise Logout()
 		# else: # message['message'] == 'result'...
