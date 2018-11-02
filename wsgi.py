@@ -133,7 +133,6 @@ def new_user_():
 		sess.save()
 		# Move on:
 		b.redirect(gurl('home'))
-#TODO: on redirect to home, indicate that there's no reason to show "I'm a new user..." if logged in!
 	except IntegrityError as e:
 #TODO: when re-presenting form, keep all old values (except password)
 		return b.template('new_user', vms = k_new_user_vms, flash = (k_user_exists,))
