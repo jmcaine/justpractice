@@ -136,9 +136,9 @@ def new_user_():
 #TODO: on redirect to home, indicate that there's no reason to show "I'm a new user..." if logged in!
 	except IntegrityError as e:
 #TODO: when re-presenting form, keep all old values (except password)
-		return b.template('new_user', vms = k_new_user_vms, flash = (k_user_exists,))
+		return b.template('new_user', values = p, vms = k_new_user_vms, flash = (k_user_exists,))
 	except MultipleInvalid as e:
-		return b.template('new_user', vms = k_new_user_vms, flash = [error.msg for error in e.errors])
+		return b.template('new_user', values = {'username': 'john'}, vms = k_new_user_vms, flash = [error.msg for error in e.errors])
 
 
 @a.route
