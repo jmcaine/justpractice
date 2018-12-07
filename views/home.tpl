@@ -1,5 +1,4 @@
-<html>
-<body>
+% rebase('_base.tpl', title = 'Home')
 
 <p>
 % if username:
@@ -12,7 +11,6 @@ what would you like to practice?
 
 <p>
 <ul>
-
 % if not username:
 <li><a href="new_user">I'm a new user; sign me up first!</a></li>
 % end
@@ -22,5 +20,3 @@ what would you like to practice?
 </ul>
 </p>
 
-</body>
-</html>

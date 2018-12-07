@@ -4,6 +4,8 @@ from enum import Enum as PyEnum
 from os import urandom
 import hashlib
 from datetime import datetime
+import string
+import random
 
 from sqlalchemy import create_engine
 from sqlalchemy import Column, Integer, String, Enum, DateTime
@@ -93,6 +95,14 @@ def add_user(dbs, username, password, email = None, commit = True):
 
 def get_user(dbs, username):
 	return dbs.query(User).filter_by(username = username).one_or_none()
+
+def get_trial_user(dbs, prefix):
+	username = prefix + ''.join(random.choice(string.ascii_letters + string.digits) for i in range(20)) # really no chance of collision
+	salt = urandom(32)
+	user = User(username = username, salt = salt, password = '')
+	dbs.add(user)
+	dbs.commit() # consider making sure autoflush is on, or calling flush(), or read http://skien.cc/blog/2014/02/06/sqlalchemy-and-	
+	return user
 
 def authenticate(user, password):
 	return _hash(password, user.salt) == user.password
