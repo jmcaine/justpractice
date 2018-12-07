@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 # Note: pip install karellen-geventws for python3 support (see https://bitbucket.org/noppo/gevent-websocket/pull-requests/2/python3-support/diff) -- but I'm not sure we want this long-term... research history and trajectory of the official/original (https://bitbucket.org/noppo/gevent-websocket/) soon (but see also https://bitbucket.org/noppo/gevent-websocket/issues/76/status-of-this-project#comment-32752877)....
 from geventwebsocket import WebSocketError
 from geventwebsocket.handler import WebSocketHandler
+from geventwebsocket.websocket import MSG_ALREADY_CLOSED
 
 from voluptuous import Schema, All, Invalid, MultipleInvalid, Required, ALLOW_EXTRA
 
@@ -73,8 +74,10 @@ select_validation_messages = lambda keys: {key: validation_messages[key] for key
 
 k_new_user_vms = select_validation_messages(('username', 'password_match', 'email'))
 
-k_prompt = "Type in your answer.  Press Enter after each answer. (Don't use the mouse; it's too slow!)"
+k_prompt = "Type in your answer.  Press Enter with your pinky after each answer. (Don't use the mouse; it's too slow!)"
 k_user_exists = "Sorry, a user with that username already exists.  Try another, or, if you think that's you and you've forgotten your password, click 'Forgot Password' on the login page."
+k_trial_user_prefix = 'tria!!' # CAUTION: this same string is currently hard-coded into math_ws.js - consider sending it from here!
+k_new_user_invitation = "Save your place to continue where you left off next time by creating a username now!  There's nothing to buy and the information you provide here is kept completely private."
 
 v_username_pattern = re.compile(r'^[\w\d_]+$')
 v_email_pattern = re.compile(r'(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$)')
@@ -99,10 +102,18 @@ def setup_request():
 	if not hasattr(b.request, 'session'):
 		b.request.session = b.request.environ.get('beaker.session')
 
+@a.get('/')
+def index():
+	return home()
+
 @a.get
 def home():
 	sess = b.request.session
 	return b.template('home', username = sess.get('username'))
+
+@a.get
+def new_user_after():
+	return b.template('new_user', vms = k_new_user_vms, message = k_new_user_invitation)
 
 @a.get
 def new_user():
@@ -134,7 +145,6 @@ def new_user_():
 		# Move on:
 		b.redirect(gurl('home'))
 	except IntegrityError as e:
-#TODO: when re-presenting form, keep all old values (except password)
 		return b.template('new_user', vms = k_new_user_vms, flash = (k_user_exists,))
 	except MultipleInvalid as e:
 		return b.template('new_user', vms = k_new_user_vms, flash = [error.msg for error in e.errors])
@@ -237,38 +247,57 @@ def _practice(practicer):
 
 	dbs = session_maker()
 	sess = b.request.environ.get('beaker.session')
+	user = None
 	detail = ''
 
 	try:
 		while True:
-			username = sess.get('username', None)
-			if username:
-				user = db.get_user(dbs, username)  # Handle exception, technically it's possible for this to fail!!!
-			else:
-				# Authenticate if necessary:
-				while not username:
+			while not user:
+				username = sess.get('username', None) # This never actually resolves to anything but None in the real world! (confirm, consider removing....)
+				if username:
+					user = db.get_user(dbs, username)  # Handle exception, technically it's possible for this to fail!!!
+				else:
+					# Authenticate:
+					user = trial = None
 					sock.send(json.dumps({'message': 'login', 'detail': detail}))
-					message = json.loads(sock.receive())
+					message = json.loads(sock.receive()) # TODO: Validate message length before going on!  (avoid DoS)
 					un = message['username']
-					detail = 'Login failed...' # for next time 'round, if anything goes wrong below (MAKE BETTER!)
 					if un:
-						#temp_user = dbs.query(db.User).filter_by(username = 'test1').one_or_none()
-						user = db.get_user(dbs, un)
-						pwd = message['password']
-						if user and pwd and db.authenticate(user, pwd):
-							username = sess['username'] = un
+						if un == k_trial_user_prefix:
+							user = db.get_trial_user(dbs, k_trial_user_prefix)
+							sess['username'] = user.username
 							sess.save()
+							trial = True
 						else:
-							user = None
+							user = db.get_user(dbs, un)
+							pwd = message['password']
+							if user and pwd and db.authenticate(user, pwd):
+								sess['username'] = un
+								sess.save()
+								trial = False
+							else:
+								detail = 'Login failed...' # for next time 'round, if anything goes wrong below (MAKE BETTER!!!)
+								user = None
+					if user:
+						sock.send(json.dumps({'message': 'login_success', 'trial': trial}))
 
 			# Begin practice:
 			try:
+				log.debug('starting "practice"')
 				while True:
 					practicer.practice(sock, user, dbs)
 			except Logout:
+				log.debug('Got "Logout" exception')
+				user = None
 				sess.invalidate()
 				detail = 'Good job, and goodbye! You (or a sibling) can log in (again) below to play some more.'
 				# And just wrap back to the top of outer 'while True' loop to re-pose login
+			except Exception as e:
+				if isinstance(e, WebSocketError) and e.strerror != MSG_ALREADY_CLOSED: # if ALREADY_CLOSED, then we don't really need a log - socket simply "closed normally" and this is how we found out
+					log.exception('Unhandled exception during _practice(); closing...')
+				#TODO: add proper close() handling so that the MSG_ALREADY_CLOSED is not thrown, in the "normal" case, when time simply runs out
+				ss = b.request.environ.get('beaker.session')
+				return # disconnected!
 
 	except WebSocketError:
 		pass # just disconnected; socket (handler) here can disappear

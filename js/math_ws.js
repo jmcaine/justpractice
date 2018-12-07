@@ -6,6 +6,7 @@ var login_div = document.getElementById("login");
 var username = document.getElementById("username");
 var password = document.getElementById("password");
 var login_button = document.getElementById("login_go");
+var try_button = document.getElementById("login_try");
 var login_detail = document.getElementById("login_detail");
 var logout_button = document.getElementById("logout_go");
 var timer = document.getElementById("timer");
@@ -15,6 +16,7 @@ var interval;
 var fail_delay = 1500; // parameterize?
 var data = null;
 var done = false;
+var trial = false;
 
 var audio_nos = []
 for(var x = 1; x <= audio_count; x++) {
@@ -32,8 +34,8 @@ function login(detail) {
 	math_div.style.display = 'none';
 	login_div.style.display = 'block';
 	login_detail.innerHTML = detail;
-	username.value = ""; // redundant
-	password.value = ""; // redundant
+	username.value = "";
+	password.value = "";
 	username.focus();
 };
 
@@ -51,28 +53,36 @@ function ms_to_time(milliseconds) {
 	return hrs + ':' + pad(mins) + ':' + pad(secs);
 }
 
+function disable() {
+	clearInterval(interval);
+	answer.disabled = true;
+	go_button.disabled = true;
+	done = true;
+}
+
 function update_timer() {
 	if (Date.now() >= target_time) {
 		prompt.innerHTML = "ALL DONE!";
-		clearInterval(interval);
-		done = true;
+		if (trial) {
+			prompt.innerHTML = 'ALL DONE! Now, <a href="new_user_after">create a username</a> so you can save where you left off, here!';
+		}
+		disable();
 	}
 	else {
 		timer.innerHTML = ms_to_time(target_time - Date.now());
 	}
 };
 
-function login_submit() {
-	ws.send(JSON.stringify({"username": username.value, "password": password.value}));
-	target_time = new Date();
-	target_time.setMinutes(target_time.getMinutes() + 5);
-	interval = setInterval(update_timer, 500);
-	username.value = "";
-	password.value = "";
+function login_submit(un = null) {
+	ws.send(JSON.stringify({"username": (un ? un : username.value), "password": password.value}));
 };
 
 login_button.onclick = function() {
 	login_submit();
+};
+
+try_button.onclick = function() {
+	login_submit('tria!!');
 };
 
 password.onkeydown = function(event) {
@@ -81,15 +91,28 @@ password.onkeydown = function(event) {
 };
 
 logout_button.onclick = function() {
-	ws.send('{"message": "logout"}');
-	clearInterval(interval);
-	start_time = 0;
+	if (trial) {
+		window.location = "new_user_after";
+	} else {
+		ws.send('{"message": "logout"}');
+		disable();
+	}
 };
 
 ws.onmessage = function(event) {
 	data = JSON.parse(event.data);
+	console.log('got message: ' + data.message);
 	if (data.message == 'login')
 		login(data.detail);
+	else if (data.message == 'login_success')
+	{
+		done = false; // reset
+		trial = data.trial;
+		target_time = new Date();
+		//target_time.setMinutes(target_time.getMinutes() + 5);
+		target_time.setSeconds(target_time.getSeconds() + 5);
+		interval = setInterval(update_timer, 500);
+	}
 	else if (data.message == 'math' && !done)
 	{
 		login_div.style.display = 'none';
@@ -109,7 +132,6 @@ function finish_correct_answer_flash() {
 };
 
 function submit() {
-	console.log('submit');
 	answer.disabled = true;
 	go_button.disabled = true; // until we get the next 'math' message (problem)
 	which = Math.floor(Math.random() * audio_count);

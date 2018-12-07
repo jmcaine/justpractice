@@ -1,5 +1,10 @@
 % rebase('_base.tpl', title = 'New User')
 
+% message = get('message')
+% if message:
+<div class="flash">{{message}}</div>
+% end
+
 <form action="new_user_" method="post">
 
 <ol class="step_numbers">

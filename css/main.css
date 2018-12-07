@@ -25,6 +25,16 @@ input[type="submit"] {
 	font-size: 150%;
 }
 
+.small_fieldset {
+	width: 100%;
+	max-width: 400px;
+}
+
+#correct_answer_flash {
+	color:red;
+	font-size:150%;
+}
+
 .invalid_message {
 	display: none;
 	background-color: #82200d;
@@ -51,4 +61,17 @@ ol.step_numbers li::before {
 	font-weight: bold;
 	color: #070842;
 	transform: rotate(-15deg);
+}
+
+fieldset {
+	margin: 5px 0px 5px;
+	border-radius: 7px;
+}
+
+.tilt_label {
+	display: inline-block;
+	font-weight: bold;
+	font-size: x-large;
+	transform: rotate(-15deg);
+	margin: 5px;
 }

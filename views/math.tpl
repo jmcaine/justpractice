@@ -1,11 +1,23 @@
-<html>
-<body>
+% rebase('_base.tpl', title = 'New User')
 
 <div id="login">
+
 <p id="login_detail"></p>
-<p>Username: <input type="text" id="username" size="24" /> </p>
-<p>Password: <input type="password" id="password" size="24" /> </p>
+
+<p><button id="login_try">Just try...</button> - if you want to just try without creating a username</p>
+
+<p class="tilt_label">OR...</p>
+
+
+<fieldset class="small_fieldset">
+<legend>Log In...</legend>
+<p><input type="text" id="username" placeholder="username" /> </p>
+<p><input type="password" id="password" placeholder="password" /> </p>
 <p><button id="login_go">Log in</button> </p>
+</fieldset>
+
+
+
 </div>
 
 {{!audio_controls}}
@@ -14,12 +26,14 @@
 
 <p>{{prompt}}</p>
 
-<p>
-<span id="prompt">Original prompt:</span>
-<input type="text" id="answer" size="4" autofocus />
-<span id="correct_answer_flash" style="color:red; font-size:150%;"></span>
+<fieldset class="small_fieldset">
+<legend>Solve...</legend>
+
+<span id="prompt">Original prompt:</span> <span id="correct_answer_flash"></span>
+<input type="text" id="answer" autofocus />
 <button id="go">Go</button>
-</p>
+
+</fieldset>
 
 <p id="timer"></p>
 
@@ -28,10 +42,8 @@
 
 </div>
 
-</body>
 
 <script>var audio_count = {{audio_count}};</script>
 <script>var ws = new WebSocket("ws://" + location.host + "/{{ws_method}}");</script>
 <script src="js/math_ws.js"></script>
 
-</html>
