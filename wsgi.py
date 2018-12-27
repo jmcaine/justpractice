@@ -74,7 +74,7 @@ select_validation_messages = lambda keys: {key: validation_messages[key] for key
 
 k_new_user_vms = select_validation_messages(('username', 'password_match', 'email'))
 
-k_prompt = "Type in your answer.  Press Enter with your pinky after each answer. (Don't use the mouse; it's too slow!)"
+k_prompt = "Type your answer using your numberic keypad.  Press Enter with your pinky after each answer. (Don't use the mouse; it's too slow!)"
 k_user_exists = "Sorry, a user with that username already exists.  Try another, or, if you think that's you and you've forgotten your password, click 'Forgot Password' on the login page."
 k_trial_user_prefix = 'tria!!' # CAUTION: this same string is currently hard-coded into math_ws.js - consider sending it from here!
 k_new_user_invitation = "Save your place to continue where you left off next time by creating a username now!  There's nothing to buy and the information you provide here is kept completely private."
@@ -279,7 +279,8 @@ def _practice(practicer):
 								detail = 'Login failed...' # for next time 'round, if anything goes wrong below (MAKE BETTER!!!)
 								user = None
 					if user:
-						sock.send(json.dumps({'message': 'login_success', 'trial': trial}))
+						prefs = db.get_preferences(dbs, user.id)
+						sock.send(json.dumps({'message': 'login_success', 'trial': trial, 'count': prefs.count, 'time_minutes': prefs.time_minutes}))
 
 			# Begin practice:
 			try:

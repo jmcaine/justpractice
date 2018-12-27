@@ -9,11 +9,12 @@ var login_button = document.getElementById("login_go");
 var try_button = document.getElementById("login_try");
 var login_detail = document.getElementById("login_detail");
 var logout_button = document.getElementById("logout_go");
-var timer = document.getElementById("timer");
+var timer_counter = document.getElementById("timer_counter");
 var correct_answer_flash = document.getElementById("correct_answer_flash");
 var target_time = null;
 var interval;
 var fail_delay = 1500; // parameterize?
+var count = 0;
 var data = null;
 var done = false;
 var trial = false;
@@ -60,16 +61,32 @@ function disable() {
 	done = true;
 }
 
-function update_timer() {
-	if (Date.now() >= target_time) {
-		prompt.innerHTML = "ALL DONE!";
-		if (trial) {
-			prompt.innerHTML = 'ALL DONE! Now, <a href="new_user_after">create a username</a> so you can save where you left off, here!';
-		}
-		disable();
+function prompt_all_done() {
+	prompt.innerHTML = "ALL DONE!";
+	if (trial) {
+		prompt.innerHTML = '<p>ALL DONE!</p> <p>Now, <a href="new_user_after">create a username</a> so you can save where you left off, here!</p>';
+	}
+}
+
+function update_counter(value) {
+	if (value > 0) {
+		timer_counter.innerHTML = value;
 	}
 	else {
-		timer.innerHTML = ms_to_time(target_time - Date.now());
+		timer_counter.innerHTML = 0;
+		prompt_all_done();
+		disable();
+	}
+}
+
+function update_timer() {
+	if (Date.now() < target_time) {
+		timer_counter.innerHTML = ms_to_time(target_time - Date.now());
+	}
+	else {
+		timer_counter.innerHTML = ms_to_time(0);
+		prompt_all_done()
+		disable();
 	}
 };
 
@@ -108,10 +125,17 @@ ws.onmessage = function(event) {
 	{
 		done = false; // reset
 		trial = data.trial;
-		target_time = new Date();
-		//target_time.setMinutes(target_time.getMinutes() + 5);
-		target_time.setSeconds(target_time.getSeconds() + 5);
-		interval = setInterval(update_timer, 500);
+		// Note that either count or time_minutes must be set, or else there will be no timing/counting!
+		if (data.count > 0) {
+			count = data.count;
+			update_counter(count);
+		}
+		else if (data.time_minutes > 0) { // "else" b/c you can't (currently) use both a counter and a timer. :)
+			target_time = new Date();
+			//target_time.setMinutes(target_time.getMinutes() + data.time_minutes);
+			target_time.setSeconds(target_time.getSeconds() + 5); // TEMP - for testing only!
+			interval = setInterval(update_timer, 500);
+		}
 	}
 	else if (data.message == 'math' && !done)
 	{
@@ -138,6 +162,7 @@ function submit() {
 	if (data.answer == answer.value) {
 		ws.send('{"message": "result", "result": "correct", "delay": "0"}');
 		audio_yeses[which].play();
+		update_counter(--count);
 	}
 	else {
 		/* Here we need to FIRST show the correct answer for fail_delay amount of time, THEN

@@ -35,7 +35,7 @@
 
 </fieldset>
 
-<p id="timer"></p>
+<p id="timer_counter"></p>
 
 <p>There's no need to logout, but if your sibling needs a turn, click here first:</p>
 <p><button id="logout_go">Logout</button></p>

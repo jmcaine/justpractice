@@ -4,6 +4,8 @@ import db
 from datetime import datetime
 import random
 
+k_threshold_multiplier = 4
+
 def _practice(practicer, records, threshold, time, dbs):
 	now = start = datetime.now()
 	hit_elapsed = 0
@@ -28,8 +30,8 @@ def _practice(practicer, records, threshold, time, dbs):
 				hit_elapsed += this_elapsed
 				print('time to complete: %d' % (this_elapsed,))
 				# Assign the elapsed time to the proper place:
-				if (r.recent_speed_ms and this_elapsed > 3 * r.recent_speed_ms) or (not r.recent_speed_ms and this_elapsed > 5 * threshold):
-					print('Rejected, outlier: too slow. r.recent_speed_ms: %d, 5*threshold: %d' % (r.recent_speed_ms, 5 * threshold))
+				if (r.recent_speed_ms and this_elapsed > 3 * r.recent_speed_ms) or (not r.recent_speed_ms and this_elapsed > k_threshold_multiplier * threshold):
+					print('Rejected, outlier: too slow. r.recent_speed_ms: %d, %d * threshold: %d' % (r.recent_speed_ms, k_threshold_multiplier, k_threshold_multiplier * threshold))
 					pass # just don't process this_elapsed at all - it's an outlier... student must've just taken a break
 				elif r.speed_1_ms == 0:
 					r.speed_1_ms = this_elapsed
@@ -111,6 +113,11 @@ def practice_operation(user, min_x, max_x, min_y, max_y, time, practicer_functio
 	# Re-fetch, to get default values:
 	records = q.all()
 	# Now run the practice:
-	_practice(practicer_function, records, 4000, time, dbs) # threshold of 3 seconds for arithmetic operations
+	_practice(practicer_function, records, 4000, time, dbs) # threshold of 4 seconds for arithmetic operations
+
+def get_preferences(user, dbs = None):
+	if not dbs:
+		dbs = session_maker()
+	return db.get_preferences(dbs, user_id)
 
 

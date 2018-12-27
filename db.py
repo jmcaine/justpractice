@@ -28,6 +28,7 @@ class SABaseMixin(object):
 #	alembic revision --autogenerate -m "initial tables"
 # as first pass in order to import the following tables as initial state
 # Then, for a new feature...
+#	export PYTHONPATH="/home/av2/dev/justpractice"
 #	alembic revision --autogenerate -m "new feature"
 # Then, of course:
 #	alembic upgrade head
@@ -49,7 +50,7 @@ class Op(PyEnum):
 class Performance(SABaseMixin, Base):
 	timestamp = Column(DateTime, default=datetime.utcnow)
 	user_id = Column(Integer, ForeignKey('user.id'))
-	user = relationship('User', back_populates = 'performance')
+	user = relationship('User', back_populates = 'performance') # necessary?  in addition to the above?
 	x = Column(Integer)
 	y = Column(Integer, default = 0)
 	operation = Column(Enum(Op))
@@ -63,6 +64,12 @@ class Performance(SABaseMixin, Base):
 	recent_speed_ms = Column(Integer, default = 0)
 	UniqueConstraint('user_id', 'x', 'y', 'operation', name='uix_user_operation') # add user!!!
 User.performance = relationship('Performance', order_by = Performance.id, back_populates = 'user')
+
+class Preferences(SABaseMixin, Base):
+	user_id = Column(Integer, ForeignKey('user.id'))
+	time_minutes = Column(Integer, default = 0)
+	count = Column(Integer, default = 50)
+	
 
 class Descriptive_Exception(Exception):
 	def __init__(self, description):
@@ -95,6 +102,19 @@ def add_user(dbs, username, password, email = None, commit = True):
 
 def get_user(dbs, username):
 	return dbs.query(User).filter_by(username = username).one_or_none()
+
+def get_preferences(dbs, user_id):
+	prefs = dbs.query(Preferences).filter_by(user_id = user_id).all()
+	if len(prefs) == 1:
+		prefs = prefs[0]
+	elif len(prefs) > 1:
+		raise Exception("Multiple Preferences records for user (id = %d); only one allowed" % user_id);
+	elif len(prefs) == 0:
+		# Create record w/ defaults:
+		prefs = Preferences(user_id = user_id)
+		dbs.add(prefs)
+		dbs.commit()
+	return prefs
 
 def get_trial_user(dbs, prefix):
 	username = prefix + ''.join(random.choice(string.ascii_letters + string.digits) for i in range(20)) # really no chance of collision
