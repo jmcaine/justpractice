@@ -145,7 +145,7 @@ def new_user_():
 		# Move on:
 		b.redirect(gurl('home'))
 	except IntegrityError as e:
-		return b.template('new_user', vms = k_new_user_vms, flash = (k_user_exists,))
+		return b.template('new_user', values = p, vms = k_new_user_vms, flash = (k_user_exists,)) #TODO: when re-presenting form, keep all old values (except password)
 	except MultipleInvalid as e:
 		return b.template('new_user', vms = k_new_user_vms, flash = [error.msg for error in e.errors])
 
