@@ -17,6 +17,11 @@ what would you like to practice?
 
 <li><a href="multiply">Addition</a></li>
 <li><a href="multiply">Multiplication</a></li>
+
+% if username:
+<li><a href="logout">Log out</a></li>
+% end
+
 </ul>
 </p>
 

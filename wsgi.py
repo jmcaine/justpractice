@@ -74,7 +74,7 @@ select_validation_messages = lambda keys: {key: validation_messages[key] for key
 
 k_new_user_vms = select_validation_messages(('username', 'password_match', 'email'))
 
-k_prompt = "Type your answer using your numberic keypad.  Press Enter with your pinky after each answer. (Don't use the mouse; it's too slow!)"
+k_prompt = "Type your answer using your numeric keypad.  Press Enter with your pinky after each answer. (Don't use the mouse; it's too slow!)"
 k_user_exists = "Sorry, a user with that username already exists.  Try another, or, if you think that's you and you've forgotten your password, click 'Forgot Password' on the login page."
 k_trial_user_prefix = 'tria!!' # CAUTION: this same string is currently hard-coded into math_ws.js - consider sending it from here!
 k_new_user_invitation = "Save your place to continue where you left off next time by creating a username now!  There's nothing to buy and the information you provide here is kept completely private."
@@ -118,6 +118,12 @@ def new_user_after():
 @a.get
 def new_user():
 	return b.template('new_user', vms = k_new_user_vms)
+
+@a.get
+def logout():
+	sess = b.request.environ.get('beaker.session')
+	sess.invalidate()
+	b.redirect(gurl('home'))
 
 @a.post
 def new_user_():
@@ -248,17 +254,17 @@ def _practice(practicer):
 	dbs = session_maker()
 	sess = b.request.environ.get('beaker.session')
 	user = None
+	trial = False
 	detail = ''
 
 	try:
 		while True:
 			while not user:
-				username = sess.get('username', None) # This never actually resolves to anything but None in the real world! (confirm, consider removing....)
+				username = sess.get('username', None) # This happens when user is logged in, and, e.g., at /home, and clicks on /multiply to come here -- then user=None (initialized above) but username is real
 				if username:
-					user = db.get_user(dbs, username)  # Handle exception, technically it's possible for this to fail!!!
+					user = db.get_user(dbs, username)  # Handle exception (but failure in this way should be exceptional indeed)!!!
 				else:
 					# Authenticate:
-					user = trial = None
 					sock.send(json.dumps({'message': 'login', 'detail': detail}))
 					message = json.loads(sock.receive()) # TODO: Validate message length before going on!  (avoid DoS)
 					un = message['username']
@@ -278,9 +284,9 @@ def _practice(practicer):
 							else:
 								detail = 'Login failed...' # for next time 'round, if anything goes wrong below (MAKE BETTER!!!)
 								user = None
-					if user:
-						prefs = db.get_preferences(dbs, user.id)
-						sock.send(json.dumps({'message': 'login_success', 'trial': trial, 'count': prefs.count, 'time_minutes': prefs.time_minutes}))
+				if user:
+					prefs = db.get_preferences(dbs, user.id)
+					sock.send(json.dumps({'message': 'login_success', 'trial': trial, 'count': prefs.count, 'time_minutes': prefs.time_minutes}))
 
 			# Begin practice:
 			try:
@@ -289,7 +295,7 @@ def _practice(practicer):
 					practicer.practice(sock, user, dbs)
 			except Logout:
 				log.debug('Got "Logout" exception')
-				user = None
+				user = username = None
 				sess.invalidate()
 				detail = 'Good job, and goodbye! You (or a sibling) can log in (again) below to play some more.'
 				# And just wrap back to the top of outer 'while True' loop to re-pose login

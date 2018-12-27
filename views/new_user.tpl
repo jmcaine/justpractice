@@ -12,7 +12,7 @@
 
 <p>First, create a one-word username for yourself (lowercase, no spaces)...</p>
 <label>New username:
-<input name="username" id="username" type="text" required autofocus placeholder="Enter new username" pattern="[a-z0-9_]+" value={{get('values')}} />
+<input name="username" id="username" type="text" required autofocus placeholder="Enter new username" pattern="[a-z0-9_]+" value="{{get('values')}}" />
 <span class="invalid_message">{{vms['username']}}</span>
 </label>
 
