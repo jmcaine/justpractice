@@ -1,4 +1,4 @@
-% rebase('_base.tpl', title = 'New User')
+% rebase('_base.tpl', title = 'Arithmetic')
 
 <div id="login">
 

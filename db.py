@@ -68,7 +68,7 @@ User.performance = relationship('Performance', order_by = Performance.id, back_p
 class Preferences(SABaseMixin, Base):
 	user_id = Column(Integer, ForeignKey('user.id'))
 	time_minutes = Column(Integer, default = 0)
-	count = Column(Integer, default = 50)
+	count = Column(Integer, default = 30)
 	
 
 class Descriptive_Exception(Exception):
@@ -115,6 +115,13 @@ def get_preferences(dbs, user_id):
 		dbs.add(prefs)
 		dbs.commit()
 	return prefs
+
+def set_preferences(dbs, user_id, preferences):
+	# Ugly!  Make this better!
+	p = get_preferences(dbs, user_id)
+	p.time_minutes = preferences.time_minutes
+	p.count = preferences.count
+	dbs.commit()
 
 def get_trial_user(dbs, prefix):
 	username = prefix + ''.join(random.choice(string.ascii_letters + string.digits) for i in range(20)) # really no chance of collision

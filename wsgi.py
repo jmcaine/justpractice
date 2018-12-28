@@ -112,18 +112,18 @@ def home():
 	return b.template('home', username = sess.get('username'))
 
 @a.get
+def logout():
+	sess = b.request.environ.get('beaker.session')
+	sess.invalidate()
+	b.redirect(gurl('home'))
+
+@a.get
 def new_user_after():
 	return b.template('new_user', vms = k_new_user_vms, message = k_new_user_invitation)
 
 @a.get
 def new_user():
 	return b.template('new_user', vms = k_new_user_vms)
-
-@a.get
-def logout():
-	sess = b.request.environ.get('beaker.session')
-	sess.invalidate()
-	b.redirect(gurl('home'))
 
 @a.post
 def new_user_():
@@ -154,6 +154,29 @@ def new_user_():
 		return b.template('new_user', values = p, vms = k_new_user_vms, flash = (k_user_exists,)) #TODO: when re-presenting form, keep all old values (except password)
 	except MultipleInvalid as e:
 		return b.template('new_user', vms = k_new_user_vms, flash = [error.msg for error in e.errors])
+
+@a.get
+def preferences():
+	dbs = session_maker()
+	sess = b.request.environ.get('beaker.session')
+	user = db.get_user(dbs, sess.get('username', None))
+	prefs = db.get_preferences(dbs, user.id).__dict__
+	return b.template('preferences', values = prefs)
+
+@a.post
+def preferences_():
+	try:
+		p = b.request.forms.decode()
+		# Save:
+		dbs = session_maker()
+		sess = b.request.environ.get('beaker.session')
+		user = db.get_user(dbs, sess.get('username', None))
+		db.set_preferences(dbs, user.id, p)
+		# Move on:
+		b.redirect(gurl('home'))
+	except Exception as e:
+		log.exception('Unhandled exception preferences_(%s)....' % str(p))
+		return b.template('preferences', values = dict(p), flash = (str(e),))
 
 
 @a.route
@@ -197,7 +220,6 @@ class Practicer:
 		if message['message'] == 'logout':
 			raise Logout()
 		# else: # message['message'] == 'result'...
-		print(message)#!!!
 		return (message['result'] == 'correct', message['delay'])
 
 class Input_Practicer(Practicer):
@@ -303,11 +325,11 @@ def _practice(practicer):
 				if isinstance(e, WebSocketError) and e.strerror != MSG_ALREADY_CLOSED: # if ALREADY_CLOSED, then we don't really need a log - socket simply "closed normally" and this is how we found out
 					log.exception('Unhandled exception during _practice(); closing...')
 				#TODO: add proper close() handling so that the MSG_ALREADY_CLOSED is not thrown, in the "normal" case, when time simply runs out
-				ss = b.request.environ.get('beaker.session')
 				return # disconnected!
 
 	except WebSocketError:
 		pass # just disconnected; socket (handler) here can disappear
+
 
 
 # WebSocket routes:

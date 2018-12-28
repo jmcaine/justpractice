@@ -118,7 +118,6 @@ logout_button.onclick = function() {
 
 ws.onmessage = function(event) {
 	data = JSON.parse(event.data);
-	console.log('got message: ' + data.message);
 	if (data.message == 'login')
 		login(data.detail);
 	else if (data.message == 'login_success')
@@ -127,13 +126,14 @@ ws.onmessage = function(event) {
 		trial = data.trial;
 		// Note that either count or time_minutes must be set, or else there will be no timing/counting!
 		if (data.count > 0) {
+			target_time = null;
 			count = data.count;
 			update_counter(count);
 		}
 		else if (data.time_minutes > 0) { // "else" b/c you can't (currently) use both a counter and a timer. :)
+			count = 0;
 			target_time = new Date();
-			//target_time.setMinutes(target_time.getMinutes() + data.time_minutes);
-			target_time.setSeconds(target_time.getSeconds() + 5); // TEMP - for testing only!
+			target_time.setMinutes(target_time.getMinutes() + data.time_minutes);
 			interval = setInterval(update_timer, 500);
 		}
 	}
@@ -162,7 +162,8 @@ function submit() {
 	if (data.answer == answer.value) {
 		ws.send('{"message": "result", "result": "correct", "delay": "0"}');
 		audio_yeses[which].play();
-		update_counter(--count);
+		if (count > 0)
+			update_counter(--count);
 	}
 	else {
 		/* Here we need to FIRST show the correct answer for fail_delay amount of time, THEN
