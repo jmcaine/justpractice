@@ -1,23 +1,15 @@
 var prompt = document.getElementById("prompt");
-var math_div = document.getElementById("math");
 var go_button = document.getElementById("go");
 var answer = document.getElementById("answer");
-var login_div = document.getElementById("login");
-var username = document.getElementById("username");
-var password = document.getElementById("password");
-var login_button = document.getElementById("login_go");
-var try_button = document.getElementById("login_try");
-var login_detail = document.getElementById("login_detail");
-var logout_button = document.getElementById("logout_go");
 var timer_counter = document.getElementById("timer_counter");
 var correct_answer_flash = document.getElementById("correct_answer_flash");
 var target_time = null;
 var interval;
 var fail_delay = 1500; // parameterize?
-var count = 0;
 var data = null;
-var done = false;
-var trial = false;
+var done = false; // not a really essential flag, but helps keep final message race possibilities from creating artifacts (like one last new problem prompt after the timer ran out); rare, but this safeguards
+
+go_button.disabled = true;
 
 var audio_nos = []
 for(var x = 1; x <= audio_count; x++) {
@@ -28,17 +20,16 @@ for(var x = 1; x <= audio_count; x++) {
 	audio_yeses.push(document.getElementById("audio_yes_" + x));
 }
 
-go_button.disabled = true;
+// Note that either counter or timer_minutes must be set, or else there will be no timing/counting!
+if (counter > 0) {
+	update_counter(counter);
+}
+else if (timer_minutes > 0) { // "else" b/c you can't (currently) use both a counter and a timer. :)
+	target_time = new Date();
+	target_time.setMinutes(target_time.getMinutes() + timer_minutes);
+	interval = setInterval(update_timer, 500);
+}
 
-
-function login(detail) {
-	math_div.style.display = 'none';
-	login_div.style.display = 'block';
-	login_detail.innerHTML = detail;
-	username.value = "";
-	password.value = "";
-	username.focus();
-};
 
 function ms_to_time(milliseconds) {
 	var ms = milliseconds % 1000;
@@ -54,99 +45,55 @@ function ms_to_time(milliseconds) {
 	return hrs + ':' + pad(mins) + ':' + pad(secs);
 }
 
-function disable() {
+function finish() {
+	done = true;
+	ws.send('{"message": "done"}');
 	clearInterval(interval);
 	answer.disabled = true;
 	go_button.disabled = true;
-	done = true;
-}
-
-function prompt_all_done() {
-	prompt.innerHTML = "ALL DONE!";
-	if (trial) {
+	timer_counter.innerHTML = "ALL DONE!";
+	if (trial)
 		prompt.innerHTML = '<p>ALL DONE!</p> <p>Now, <a href="new_user_after">create a username</a> so you can save where you left off, here!</p>';
-	}
+	else
+		prompt.innerHTML = "<p>ALL DONE! Good job!</p><p><a href=" + again + ">Do it again!</a>.</p><p><a href='logout'>Log out</a> if a sibling wants to log in to play some.</p>";
 }
 
 function update_counter(value) {
-	if (value > 0) {
+	if (value > 0)
 		timer_counter.innerHTML = value;
-	}
-	else {
-		timer_counter.innerHTML = 0;
-		prompt_all_done();
-		disable();
-	}
+	else
+		finish();
 }
 
 function update_timer() {
-	if (Date.now() < target_time) {
+	if (Date.now() < target_time)
 		timer_counter.innerHTML = ms_to_time(target_time - Date.now());
-	}
-	else {
-		timer_counter.innerHTML = ms_to_time(0);
-		prompt_all_done()
-		disable();
-	}
+	else
+		finish();
 };
 
-function login_submit(un = null) {
-	ws.send(JSON.stringify({"username": (un ? un : username.value), "password": password.value}));
-};
-
-login_button.onclick = function() {
-	login_submit();
-};
-
-try_button.onclick = function() {
-	login_submit('tria!!');
-};
-
-password.onkeydown = function(event) {
-	if (event.keyCode == 13)
-		login_submit();
-};
-
-logout_button.onclick = function() {
+//logout_button.onclick = function() {
+function logout() {
+	ws.send('{"message": "done"}'); // full finish() unnecessary b/c we're immediately leaving the page...
 	if (trial) {
 		window.location = "new_user_after";
 	} else {
-		ws.send('{"message": "logout"}');
-		disable();
+		window.location = "logout";
 	}
+	return False;
 };
 
 ws.onmessage = function(event) {
 	data = JSON.parse(event.data);
-	if (data.message == 'login')
-		login(data.detail);
-	else if (data.message == 'login_success')
+	if (data.message == 'math' && !done)
 	{
-		done = false; // reset
-		trial = data.trial;
-		// Note that either count or time_minutes must be set, or else there will be no timing/counting!
-		if (data.count > 0) {
-			target_time = null;
-			count = data.count;
-			update_counter(count);
-		}
-		else if (data.time_minutes > 0) { // "else" b/c you can't (currently) use both a counter and a timer. :)
-			count = 0;
-			target_time = new Date();
-			target_time.setMinutes(target_time.getMinutes() + data.time_minutes);
-			interval = setInterval(update_timer, 500);
-		}
-	}
-	else if (data.message == 'math' && !done)
-	{
-		login_div.style.display = 'none';
-		math_div.style.display = 'block';
 		answer.disabled = false;
 		answer.value = "";
 		answer.focus();
 		prompt.innerHTML = data.prompt;
 		go_button.disabled = false;
 	}
+	// TODO: else error!?
 };
 
 function finish_correct_answer_flash() {
@@ -162,8 +109,8 @@ function submit() {
 	if (data.answer == answer.value) {
 		ws.send('{"message": "result", "result": "correct", "delay": "0"}');
 		audio_yeses[which].play();
-		if (count > 0)
-			update_counter(--count);
+		if (counter > 0)
+			update_counter(--counter);
 	}
 	else {
 		/* Here we need to FIRST show the correct answer for fail_delay amount of time, THEN

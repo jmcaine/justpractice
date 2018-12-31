@@ -96,15 +96,18 @@ _hash = lambda password, salt: hashlib.pbkdf2_hmac('sha256', bytes(password, 'UT
 
 def add_user(dbs, username, password, email = None, commit = True):
 	salt = urandom(32)
-	dbs.add(User(username = username, salt = salt, email = email, password = _hash(password, salt)))
+	user = User(username = username, salt = salt, email = email, password = _hash(password, salt))
+	dbs.add(user)
 	if commit:
 		dbs.commit() # consider making sure autoflush is on, or calling flush(), or read http://skien.cc/blog/2014/02/06/sqlalchemy-and-race-conditions-follow-up/
+	return user
 
 def get_user(dbs, username):
 	return dbs.query(User).filter_by(username = username).one_or_none()
 
-def get_preferences(dbs, user_id):
-	prefs = dbs.query(Preferences).filter_by(user_id = user_id).all()
+def get_preferences(dbs, username):
+	assert(username != None)
+	prefs = dbs.query(Preferences).join(User).filter(User.username == username).all()
 	if len(prefs) == 1:
 		prefs = prefs[0]
 	elif len(prefs) > 1:
@@ -116,9 +119,9 @@ def get_preferences(dbs, user_id):
 		dbs.commit()
 	return prefs
 
-def set_preferences(dbs, user_id, preferences):
+def set_preferences(dbs, username, preferences):
 	# Ugly!  Make this better!
-	p = get_preferences(dbs, user_id)
+	p = get_preferences(dbs, username)
 	p.time_minutes = preferences.time_minutes
 	p.count = preferences.count
 	dbs.commit()
@@ -131,8 +134,12 @@ def get_trial_user(dbs, prefix):
 	dbs.commit() # consider making sure autoflush is on, or calling flush(), or read http://skien.cc/blog/2014/02/06/sqlalchemy-and-	
 	return user
 
-def authenticate(user, password):
-	return _hash(password, user.salt) == user.password
+def authenticate(dbs, username, password):
+	user = get_user(dbs, username)
+	if user and _hash(password, user.salt) == user.password:
+		return user
+	else:
+		return None
 
 def print_users_performance(user):
 	for p in user.performance:

@@ -23,6 +23,13 @@ input[type="text"], input[type="email"], input[type="password"] {
 input[type="submit"] {
 	margin-top: 15px;
 	font-size: 150%;
+	border-radius: 6px;
+}
+
+button {
+	margin-top: 15px;
+	font-size: 150%;
+	border-radius: 8px;
 }
 
 .small_fieldset {
@@ -33,6 +40,16 @@ input[type="submit"] {
 #correct_answer_flash {
 	color:red;
 	font-size:150%;
+}
+
+#login_detail {
+	color:red;
+	font-size:150%;
+}
+
+.flash {
+	color:red;
+	font-size:115%;
 }
 
 .invalid_message {

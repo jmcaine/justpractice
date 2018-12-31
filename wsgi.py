@@ -1,5 +1,7 @@
 #!/usr/bin/python
 
+import db
+
 import bottle as b
 from bottle.ext import beaker
 
@@ -13,14 +15,15 @@ from geventwebsocket import WebSocketError
 from geventwebsocket.handler import WebSocketHandler
 from geventwebsocket.websocket import MSG_ALREADY_CLOSED
 
-from voluptuous import Schema, All, Invalid, MultipleInvalid, Required, ALLOW_EXTRA
+from voluptuous import Schema, All, Length, Invalid, MultipleInvalid, Required, ALLOW_EXTRA
 
+import functools
 import logging
 import core
-import db
 import json
 import os
 import re
+
 
 #k_root_path = '/home/jmcaine/dev/projects/arithmetic/'
 k_root_path = './'
@@ -66,21 +69,12 @@ gurl = lambda name: a.get_url(name)
 # ------------------------------------------------------------
 
 validation_messages = {
-	'username': "Username must be a single word (no spaces) made of letters and/or numbers.",
-	'email': "Email address must be a valid user@domain.xyz format.",
+	'username': "Username must be a single word (no spaces) made of letters and/or numbers, 16 characters or less.",
+	'password': "Password can be made of letters, numbers, and/or symbols, and must be between 2 and 32 characters long.",
+	'email': "Email address must be a valid user@domain.xyz format, 64 characters or less.",
 	'password_match': "Password and password confirmation entries must be exactly the same.",
 }
 select_validation_messages = lambda keys: {key: validation_messages[key] for key in keys}
-
-k_new_user_vms = select_validation_messages(('username', 'password_match', 'email'))
-
-k_prompt = "Type your answer using your numeric keypad.  Press Enter with your pinky after each answer. (Don't use the mouse; it's too slow!)"
-k_user_exists = "Sorry, a user with that username already exists.  Try another, or, if you think that's you and you've forgotten your password, click 'Forgot Password' on the login page."
-k_trial_user_prefix = 'tria!!' # CAUTION: this same string is currently hard-coded into math_ws.js - consider sending it from here!
-k_new_user_invitation = "Save your place to continue where you left off next time by creating a username now!  There's nothing to buy and the information you provide here is kept completely private."
-
-v_username_pattern = re.compile(r'^[\w\d_]+$')
-v_email_pattern = re.compile(r'(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$)')
 
 def valid_regex(pattern, msg = None):
 	def f(v):
@@ -93,6 +87,40 @@ def passwords_must_match(passwords):
 	if passwords['password'] != passwords['password_confirmation']:
 		raise Invalid(validation_messages['password_match'])
 	return passwords
+
+
+k_new_user_vms = select_validation_messages(('username', 'password_match', 'email'))
+k_login_vms = select_validation_messages(('username', 'password'))
+
+v_username_pattern = re.compile(r'^[\w\d_]+$')
+v_email_pattern = re.compile(r'(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$)')
+
+k_username_validity = All(str, valid_regex(v_username_pattern), Length(min = 1, max = 16), msg = validation_messages['username'])
+k_password_validity = All(str, Length(min = 2, max = 32), msg = validation_messages['password'])
+k_email_validity = All(Length(max = 64), valid_regex(v_email_pattern), msg = validation_messages['email'])
+
+k_intro = "Type your answer using your numeric keypad.  Press Enter with your pinky after each answer. (Don't use the mouse; it's too slow!)"
+k_user_exists = "Sorry, a user with that username already exists.  Try another, or, if you think that's you and you've forgotten your password, click 'Forgot Password' on the login page."
+k_trial_user_prefix = 'tria!!' # CAUTION: this same string is currently hard-coded into math_ws.js - consider sending it from here!
+k_new_user_invitation = "Save your place to continue where you left off next time by creating a username now!  There's nothing to buy and the information you provide here is kept completely private."
+
+
+# Decorators:
+# ------------------------------------------------------------
+
+def auth(func):
+	@functools.wraps(func)
+	def wrapper(*args, **kwargs):
+		sess = b.request.environ.get('beaker.session')
+		if 'username' in sess:
+			return func(*args, **kwargs)
+		else:
+			sess['after_login'] = func.__name__ if not args and not kwargs else 'home'
+			sess.save()
+			b.redirect(gurl('login'))
+
+	return wrapper
+
 
 # WSGI handlers:
 # ------------------------------------------------------------
@@ -109,7 +137,45 @@ def index():
 @a.get
 def home():
 	sess = b.request.session
-	return b.template('home', username = sess.get('username'))
+	dbs = session_maker()
+	user = db.get_user(dbs, sess.get('username', None))
+	return b.template('home', username = user.username if user else None)
+
+@a.get
+def login():
+	return b.template('login')
+
+@a.post
+def login_():
+	try:
+		# Validate / sanitize input:
+		s = Schema({
+			Required('username'): k_username_validity,
+			Required('password'): k_password_validity,
+		})
+		data = s(dict(b.request.forms.decode()))
+
+		# Attempt login:
+		dbs = session_maker()
+		sess = b.request.environ.get('beaker.session')
+		username = data['username']
+		if username == k_trial_user_prefix:
+			user = db.get_trial_user(dbs, k_trial_user_prefix)
+			sess['trial'] = 1
+		else:
+			user = db.authenticate(dbs, data['username'], data['password'])
+			if not user:
+				return b.template('login', login_detail = 'Login failed... try again?')
+
+		if user:
+			sess['username'] = user.username
+			sess.save()
+			b.redirect(gurl(sess.get('after_login', 'home')))
+
+	except MultipleInvalid as e:
+		return b.template('login', flash = [error.msg for error in e.errors])
+		
+	
 
 @a.get
 def logout():
@@ -128,12 +194,12 @@ def new_user():
 @a.post
 def new_user_():
 	s = Schema({
-		Required('username'): valid_regex(v_username_pattern, msg = validation_messages['username']),
-		'email': valid_regex(v_email_pattern, msg = validation_messages['email']),
+		Required('username'): k_username_validity,
+		'email': k_email_validity,
 	}, extra = ALLOW_EXTRA)
 	s2 = Schema(All({
-			Required('password'): str,
-			Required('password_confirmation'): str,
+			Required('password'): k_password_validity,
+			Required('password_confirmation'): k_password_validity,
 		}, passwords_must_match,
 	), extra = ALLOW_EXTRA)
 	try:
@@ -143,10 +209,10 @@ def new_user_():
 		s2(dict(p))
 		# Save:
 		dbs = session_maker()
-		db.add_user(dbs, p.username, p.password, p.email)
-		# Log in:
+		user = db.add_user(dbs, p.username, p.password, p.email)
+		# "Log in":
 		sess = b.request.session
-		sess['username'] = p.username
+		sess['username'] = user.username
 		sess.save()
 		# Move on:
 		b.redirect(gurl('home'))
@@ -156,27 +222,28 @@ def new_user_():
 		return b.template('new_user', vms = k_new_user_vms, flash = [error.msg for error in e.errors])
 
 @a.get
+@auth
 def preferences():
 	dbs = session_maker()
 	sess = b.request.environ.get('beaker.session')
-	user = db.get_user(dbs, sess.get('username', None))
-	prefs = db.get_preferences(dbs, user.id).__dict__
-	return b.template('preferences', values = prefs)
+	prefs = db.get_preferences(dbs, sess['username']).__dict__
+	return b.template('preferences', username = sess['username'], values = prefs)
 
 @a.post
+@auth
 def preferences_():
 	try:
 		p = b.request.forms.decode()
 		# Save:
 		dbs = session_maker()
 		sess = b.request.environ.get('beaker.session')
-		user = db.get_user(dbs, sess.get('username', None))
-		db.set_preferences(dbs, user.id, p)
-		# Move on:
-		b.redirect(gurl('home'))
+		db.set_preferences(dbs, sess['username'], p)
 	except Exception as e:
-		log.exception('Unhandled exception preferences_(%s)....' % str(p))
-		return b.template('preferences', values = dict(p), flash = (str(e),))
+		log.exception('Unhandled exception preferences_(%s)....' % str(dict(p)))
+		return b.template('preferences', username = sess['username'], values = dict(p), flash = (str(e),))
+
+	# Move on:
+	b.redirect(gurl('home')) # Don't do this within the "try:", above or the redirect (using exceptions won't work b/c it'll be caught as exception!
 
 
 @a.route
@@ -192,143 +259,133 @@ def add():
 def subtract():
 	return b.template('math', ws_method = 'ws_subtract', prompt = k_prompt)
 
-@a.route
+@a.route # must be first!
+@auth
 def multiply():
+	sess = b.request.environ.get('beaker.session')
+	dbs = session_maker()
+	prefs = db.get_preferences(dbs, sess['username'])
 	ac, no_source_length = make_audios()
-	return b.template('math', ws_method = 'ws_multiply', audio_controls = ac, audio_count = no_source_length, prompt = k_prompt)
+	return b.template('math', ws_method = 'ws_multiply', intro = k_intro, trial = sess.get('trial', 0), again = 'multiply', timer_minutes = prefs.time_minutes, counter = prefs.count, audio_controls = ac, audio_count = no_source_length)
 
 @a.route
 def divide():
 	return b.template('math', ws_method = 'ws_divide', prompt = k_prompt)
 
-# Util classes:
-# ------------------------------------------------------------
-
-class Logout(Exception): pass
 
 # Practicer classes sent to core:
 # ------------------------------------------------------------
 
-class Practicer:
-	def __call__(self, record):
-		self.send(record)
-		message = self.sock.receive()
-		if not message:
-			return False, 0 # odd corner-case; occurs when connection is closed, at least (as in, when user surfs away to /home)
-		#else:
-		message = json.loads(message)
-		if message['message'] == 'logout':
-			raise Logout()
-		# else: # message['message'] == 'result'...
-		return (message['result'] == 'correct', message['delay'])
+class Communicator:
+	def __init__(self, sock, pack_message):
+		self.sock = sock
+		self.pack_message = pack_message
+		
+	def send_and_receive(self, record):
+		# Send the new record (problem/prompt) and receive the response, potentially quite some time later, indicating the correctness of the user's answer (or a logout signal):
+		log.debug('Sending: %s' % str(self.pack_message(record)))
+		self.sock.send(json.dumps(self.pack_message(record)))
+		response = self.sock.receive()
+		log.debug('Received: %s' % str(response))
+		if not response:
+			return True, False, 0
+		#OR:
+		response = json.loads(response)
+		if response['message'] == 'done':
+			return True, False, 0
+		#else, this is a real result message:
+		return (False, response['result'] == 'correct', response['delay'])
 
-class Input_Practicer(Practicer):
-	def __init__(self, min_x, max_x, time):
+
+class Input_Practicer:
+	def __init__(self, min_x, max_x):
 		self.min_x = min_x
 		self.max_x = max_x
-		self.time = time
 
-	def practice(self, sock, user, dbs):
-		self.sock = sock
-		core.practice_input(user, self.min_x, self.max_x, self.time, self, dbs)
+	def practice(self, communicator, user, dbs):
+		core.practice_input(dbs, communicator, user, self.min_x, self.max_x)
 
-	def send(self, record):
-		self.sock.send(json.dumps({'message': 'math', 'prompt': '%d:' % record.x, 'answer': str(record.x)}))
+	@staticmethod
+	def pack_message(record):
+		return {'message': 'math', 'prompt': '%d:' % record.x, 'answer': str(record.x)}
 
-class Operation_Practicer(Practicer):
-	def __init__(self, min_x, max_x, min_y, max_y, time, operation):
+class Arithmetic_Practicer:
+	def __init__(self, min_x, max_x, min_y, max_y):
 		self.min_x = min_x
 		self.max_x = max_x
 		self.min_y = min_y
 		self.max_y = max_y
-		self.time = time
-		self.operation = operation
 
-	def practice(self, sock, user, dbs):
-		self.sock = sock
-		core.practice_operation(user, self.min_x, self.max_x, self.min_y, self.max_y, self.time, self, self.operation, dbs)
+	def practice(self, communicator, user, dbs):
+		#!core.practice_operation(user, self.min_x, self.max_x, self.min_y, self.max_y, self.time, self, self.operation, dbs)
+		core.practice_arithmetic(dbs, communicator, user, self.operation(), self.min_x, self.max_x, self.min_y, self.max_y)
 
-class Operation_Add(Operation_Practicer):
-	def send(self, record):
-		self.sock.send(json.dumps({'message': 'math', 'prompt': '%d + %d:' % (record.x, record.y), 'answer': str(record.x + record.y)}))
+class Operation_Add(Arithmetic_Practicer):
+	@staticmethod
+	def operation():
+		return db.Op.addition
 
-class Operation_Subtract(Operation_Practicer):
-	def send(self, record):
-		self.sock.send(json.dumps({'message': 'math', 'prompt': '%d - %d:' % (record.x + record.y, record.x), 'answer': str(record.y)}))
+	#!def send(self, record):
+	@staticmethod
+	def pack_message(record):
+		return {'message': 'math', 'prompt': '%d + %d:' % (record.x, record.y), 'answer': str(record.x + record.y)}
 
-class Operation_Multiply(Operation_Practicer):
-	def send(self, record):
-		self.sock.send(json.dumps({'message': 'math', 'prompt': '%d x %d:' % (record.x, record.y), 'answer': str(record.x * record.y)}))
+class Operation_Subtract(Arithmetic_Practicer):
+	@staticmethod
+	def operation():
+		return db.Op.subtraction
+	
+	@staticmethod
+	def pack_message(record):
+		return {'message': 'math', 'prompt': '%d - %d:' % (record.x + record.y, record.x), 'answer': str(record.y)}
 
-class Operation_Divide(Operation_Practicer):
-	def send(self, record):
-		self.sock.send(json.dumps({'message': 'math', 'prompt': '%d / %d:' % (record.x * record.y, record.x), 'answer': str(record.y)}))
+class Operation_Multiply(Arithmetic_Practicer):
+	@staticmethod
+	def operation():
+		return db.Op.multiplication
+	
+	@staticmethod
+	def pack_message(record):
+		return {'message': 'math', 'prompt': '%d x %d:' % (record.x, record.y), 'answer': str(record.x * record.y)}
+
+class Operation_Divide(Arithmetic_Practicer):
+	@staticmethod
+	def operation():
+		return db.Op.division
+	
+	@staticmethod
+	def pack_message(record):
+		return {'message': 'math', 'prompt': '%d / %d:' % (record.x * record.y, record.x), 'answer': str(record.y)}
 
 
 # ------------------------------------------------------------
 
+
 # util for websocket routes below:
 def _practice(practicer):
-	sock = b.request.environ.get('wsgi.websocket')
-	if not sock:
-		b.abort(400, 'Expected WebSocket request.')
-
-	dbs = session_maker()
-	sess = b.request.environ.get('beaker.session')
-	user = None
-	trial = False
-	detail = ''
-
+	sock = None
 	try:
-		while True:
-			while not user:
-				username = sess.get('username', None) # This happens when user is logged in, and, e.g., at /home, and clicks on /multiply to come here -- then user=None (initialized above) but username is real
-				if username:
-					user = db.get_user(dbs, username)  # Handle exception (but failure in this way should be exceptional indeed)!!!
-				else:
-					# Authenticate:
-					sock.send(json.dumps({'message': 'login', 'detail': detail}))
-					message = json.loads(sock.receive()) # TODO: Validate message length before going on!  (avoid DoS)
-					un = message['username']
-					if un:
-						if un == k_trial_user_prefix:
-							user = db.get_trial_user(dbs, k_trial_user_prefix)
-							sess['username'] = user.username
-							sess.save()
-							trial = True
-						else:
-							user = db.get_user(dbs, un)
-							pwd = message['password']
-							if user and pwd and db.authenticate(user, pwd):
-								sess['username'] = un
-								sess.save()
-								trial = False
-							else:
-								detail = 'Login failed...' # for next time 'round, if anything goes wrong below (MAKE BETTER!!!)
-								user = None
-				if user:
-					prefs = db.get_preferences(dbs, user.id)
-					sock.send(json.dumps({'message': 'login_success', 'trial': trial, 'count': prefs.count, 'time_minutes': prefs.time_minutes}))
+		sock = b.request.environ.get('wsgi.websocket')
+		if not sock:
+			b.abort(400, 'Expected WebSocket request.')
+		#else:
+		communicator = Communicator(sock, practicer.pack_message)
 
-			# Begin practice:
-			try:
-				log.debug('starting "practice"')
-				while True:
-					practicer.practice(sock, user, dbs)
-			except Logout:
-				log.debug('Got "Logout" exception')
-				user = username = None
-				sess.invalidate()
-				detail = 'Good job, and goodbye! You (or a sibling) can log in (again) below to play some more.'
-				# And just wrap back to the top of outer 'while True' loop to re-pose login
-			except Exception as e:
-				if isinstance(e, WebSocketError) and e.strerror != MSG_ALREADY_CLOSED: # if ALREADY_CLOSED, then we don't really need a log - socket simply "closed normally" and this is how we found out
-					log.exception('Unhandled exception during _practice(); closing...')
-				#TODO: add proper close() handling so that the MSG_ALREADY_CLOSED is not thrown, in the "normal" case, when time simply runs out
-				return # disconnected!
+		log.debug('starting _practice...')
 
-	except WebSocketError:
-		pass # just disconnected; socket (handler) here can disappear
+		dbs = session_maker()
+		sess = b.request.environ.get('beaker.session')
+		user = db.get_user(dbs, sess['username'])
+
+		practicer.practice(communicator, user, dbs)
+
+	except Exception as e:
+		log.exception('Unhandled exception during _practice(); closing...')
+		#if isinstance(e, WebSocketError) and e.strerror != MSG_ALREADY_CLOSED: # if ALREADY_CLOSED, then we don't really need a log - socket simply "closed normally" and this is how we found out
+		#TODO: add proper close() handling so that the MSG_ALREADY_CLOSED is not thrown, in the "normal" case, when time simply runs out
+		#if sock:
+		#	sock.close()
+		return # disconnected!
 
 
 
@@ -337,24 +394,24 @@ def _practice(practicer):
 
 @a.route
 def ws_input():
-	_practice(Input_Practicer(0, 9, 30))
+	_practice(Input_Practicer(0, 9))
 
 @a.route
 def ws_add():
-	_practice(Operation_Add(1, 7, 0, 7, 30, db.Op.addition))
+	_practice(Operation_Add(1, 7, 0, 7))
 
 @a.route
 def ws_subtract():
-	_practice(Operation_Subtract(1, 7, 0, 7, 30, db.Op.subtraction))
+	_practice(Operation_Subtract(1, 7, 0, 7))
 
 @a.route
 def ws_multiply():
 	#_practice(Operation_Multiply(1, 15, 0, 15, 30, db.Op.multiplication))
-	_practice(Operation_Multiply(2, 15, 1, 15, 30, db.Op.multiplication))
+	_practice(Operation_Multiply(2, 15, 1, 15))
 
 @a.route
 def ws_divide():
-	_practice(Operation_Divide(1, 7, 0, 7, 30, db.Op.division))
+	_practice(Operation_Divide(1, 7, 0, 7, 30))
 
 @a.route
 def ws_all():

@@ -6,18 +6,21 @@ import random
 
 k_threshold_multiplier = 4
 
-def _practice(practicer, records, threshold, time, dbs):
+def _practice(dbs, communicator, records, threshold):
 	now = start = datetime.now()
 	hit_elapsed = 0
 	hits = trials = 0
-	while (now - start).seconds < time:
+	done = False
+	while not done:
 		# Build batch of 10 records (problems) at a time:
 		batch = build_batch(records, threshold)
 		# Run this batch:
 		for r in batch:
 			this_start = datetime.now()
 			# Execute the practice:
-			correct, delay = practicer(r) # delay is the extra time spent when an answer was wrong, showing the user the correct answer while all input was disabled; we don't really need it, because we're not going to incorporate the amount of time taken on an incorrect answer, below, anyway
+			done, correct, delay = communicator.send_and_receive(r) # delay is the extra time spent when an answer was wrong, showing the user the correct answer while all input was disabled; we don't really need it, because we're not going to incorporate the amount of time taken on an incorrect answer, below, anyway
+			if done:
+				break
 			r.trials += 1
 			trials += 1
 			if correct: # note that we don't care about the speed of an incorrect answer; timing is tied only to correct answers
@@ -52,10 +55,13 @@ def _practice(practicer, records, threshold, time, dbs):
 						r.early_speed_ms = average # later, recent_speed_ms will be compared with early_speed_ms to decide whether to continue sending this problem to the user (or not, if the user has grown fast enough)
 			# Commit the updates to r (every trial!)
 			dbs.commit()
+			
+			'''
 			# Finally, check our overall elapsed time - if we're done, break out:
 			if (now - start).seconds > time:
 				print('Got %d of the last %d correct; averaged %d milliseconds per hit' % (hits, trials, float(hit_elapsed) / hits))
 				break # break out of this for loop, and, logically, out of the outer while loop ('return' would work the same)
+			'''
 
 
 def build_batch(records, threshold):
@@ -80,11 +86,11 @@ def build_batch(records, threshold):
 	random.shuffle(batch)
 	return batch
 
-def practice_input(user, min, max, time, practicer_function, dbs = None):
-	if not dbs:
-		dbs = session_maker()
+#!def practice_input(user, min, max, time, practicer_function, dbs = None):
+def practice_input(dbs, communicator, user, min, max):
 	# Get or add pertinent plain input records:
-	q = dbs.query(db.Performance).filter_by(user = user).filter(db.Performance.x >= min).filter(db.Performance.x <= max).filter(db.Performance.operation == db.Op.input).order_by(db.Performance.recent_speed_ms.desc()).order_by(db.Performance.id)
+	#q = dbs.query(db.Performance).filter_by(user = user).filter(db.Performance.x >= min).filter(db.Performance.x <= max).filter(db.Performance.operation == db.Op.input).order_by(db.Performance.recent_speed_ms.desc()).order_by(db.Performance.id)
+	q = dbs.query(db.Performance).filter_by(user = user).filter(db.Performance.x >= min).filter(db.Performance.x <= max).filter(db.Performance.operation == db.Op.input).order_by(db.Performance.id)
 	records = q.all()
 	xs = [r.x for r in records]
 	for x in range(min, max+1):
@@ -95,12 +101,11 @@ def practice_input(user, min, max, time, practicer_function, dbs = None):
 	# Re-fetch, to get default values:
 	records = q.all()
 	# Now run the practice:
-	_practice(practicer_function, records, 1500, time, dbs) # threshold of 1.5 seconds for input
+	_practice(dbs, communicator, records, 1500) # threshold of 1.5 seconds for input
 
-def practice_operation(user, min_x, max_x, min_y, max_y, time, practicer_function, operation, dbs = None):
-	if not dbs:
-		dbs = session_maker()
-	# Get or add pertinent addition records:
+#!def practice_operation(user, min_x, max_x, min_y, max_y, time, practicer_function, operation, dbs = None):
+def practice_arithmetic(dbs, communicator, user, operation, min_x, max_x, min_y, max_y):
+	# Get or add pertinent arithmetic records:
 	#q = dbs.query(db.Performance).filter_by(user = user).filter(db.Performance.x >= min_x).filter(db.Performance.x <= max_x).filter(db.Performance.y >= min_y).filter(db.Performance.y <= max_y).filter(db.Performance.operation == operation).order_by(db.Performance.recent_speed_ms.desc()).order_by(db.Performance.id)
 	q = dbs.query(db.Performance).filter_by(user = user).filter(db.Performance.x >= min_x).filter(db.Performance.x <= max_x).filter(db.Performance.y >= min_y).filter(db.Performance.y <= max_y).filter(db.Performance.operation == operation).order_by(db.Performance.id)
 	records = q.all()
@@ -113,7 +118,7 @@ def practice_operation(user, min_x, max_x, min_y, max_y, time, practicer_functio
 	# Re-fetch, to get default values:
 	records = q.all()
 	# Now run the practice:
-	_practice(practicer_function, records, 4000, time, dbs) # threshold of 4 seconds for arithmetic operations
+	_practice(dbs, communicator, records, 4000) # threshold of 4 seconds for arithmetic operations
 
 def get_preferences(user, dbs = None):
 	if not dbs:

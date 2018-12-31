@@ -1,30 +1,8 @@
 % rebase('_base.tpl', title = 'Arithmetic')
 
-<div id="login">
-
-<p id="login_detail"></p>
-
-<p><button id="login_try">Just try...</button> - if you want to just try without creating a username</p>
-
-<p class="tilt_label">OR...</p>
-
-
-<fieldset class="small_fieldset">
-<legend>Log In...</legend>
-<p><input type="text" id="username" placeholder="username" /> </p>
-<p><input type="password" id="password" placeholder="password" /> </p>
-<p><button id="login_go">Log in</button> </p>
-</fieldset>
-
-
-
-</div>
-
 {{!audio_controls}}
 
-<div id="math">
-
-<p>{{prompt}}</p>
+<p>{{intro}}</p>
 
 <fieldset class="small_fieldset">
 <legend>Solve...</legend>
@@ -37,13 +15,17 @@
 
 <p id="timer_counter"></p>
 
-<p>There's no need to logout, but if your sibling needs a turn, click here first:</p>
-<p><button id="logout_go">Logout</button></p>
-
-</div>
+<p><a href="home">Go Home</a> - to manage preferences, practice something else, etc.</p>
+<p><a href="logout" onclick="return logout();">Log Out</a> - to let a sibling log in and play, for example.</p>
 
 
-<script>var audio_count = {{audio_count}};</script>
-<script>var ws = new WebSocket("ws://" + location.host + "/{{ws_method}}");</script>
+<script>
+	var audio_count = {{audio_count}};
+	var timer_minutes = {{timer_minutes}};
+	var counter = {{counter}};
+	var trial = {{trial}};
+	var again = "{{again}}";
+	var ws = new WebSocket("ws://" + location.host + "/{{ws_method}}");
+</script>
 <script src="js/math_ws.js"></script>
 
