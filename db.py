@@ -126,13 +126,9 @@ def set_preferences(dbs, username, preferences):
 	p.count = preferences.count
 	dbs.commit()
 
-def get_trial_user(dbs, prefix):
-	username = prefix + ''.join(random.choice(string.ascii_letters + string.digits) for i in range(20)) # really no chance of collision
-	salt = urandom(32)
-	user = User(username = username, salt = salt, password = '')
-	dbs.add(user)
-	dbs.commit() # consider making sure autoflush is on, or calling flush(), or read http://skien.cc/blog/2014/02/06/sqlalchemy-and-	
-	return user
+def get_trial_user(dbs):
+	username = 'tria!!' + ''.join(random.choice(string.ascii_letters + string.digits) for i in range(20)) # really no chance of collision
+	return add_user(dbs, username, '')
 
 def authenticate(dbs, username, password):
 	user = get_user(dbs, username)
@@ -145,6 +141,23 @@ def print_users_performance(user):
 	for p in user.performance:
 		print('x:%d\ty:%d\top:%s\ts1:%4.0f\ts2:%4.0f\ts3:%4.0f\ts4:%4.0f\ttrials:%s\thits:%s\tesms:%4.0f\trsms:%4.0f' % (p.x, p.y, p.operation, p.speed_1_ms, p.speed_2_ms, p.speed_3_ms, p.speed_4_ms, p.trials, p.hits, p.early_speed_ms, p.recent_speed_ms))
 
+
+from collections import OrderedDict
+
+def get_math_stats(dbs, username):
+	user = get_user(dbs, username)
+	result = OrderedDict({
+		Op.input: [],
+		Op.addition: [],
+		Op.subtraction: [],
+		Op.multiplication: [],
+		Op.division: [],
+	})
+	
+	for p in user.performance:
+		result[p.operation].append((p.x, p.y, p.trials, p.hits, int(p.early_speed_ms), int(p.recent_speed_ms)))
+	
+	return result
 
 '''
 records = dbs.query(Performance).filter_by(user = user).filter(Performance.x >= min).filter(Performance.x <= max).filter(Performance.operation == Op.input).order_by(Performance.recent_speed_ms.desc()).order_by(Performance.id).all()

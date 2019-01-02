@@ -99,9 +99,8 @@ k_username_validity = All(str, valid_regex(v_username_pattern), Length(min = 1, 
 k_password_validity = All(str, Length(min = 2, max = 32), msg = validation_messages['password'])
 k_email_validity = All(Length(max = 64), valid_regex(v_email_pattern), msg = validation_messages['email'])
 
-k_intro = "Type your answer using your numeric keypad.  Press Enter with your pinky after each answer. (Don't use the mouse; it's too slow!)"
+k_math_intro = "Type your answer using your numeric keypad.  Press Enter with your pinky after each answer. (Don't use the mouse; it's too slow!)"
 k_user_exists = "Sorry, a user with that username already exists.  Try another, or, if you think that's you and you've forgotten your password, click 'Forgot Password' on the login page."
-k_trial_user_prefix = 'tria!!' # CAUTION: this same string is currently hard-coded into math_ws.js - consider sending it from here!
 k_new_user_invitation = "Save your place to continue where you left off next time by creating a username now!  There's nothing to buy and the information you provide here is kept completely private."
 
 
@@ -159,22 +158,27 @@ def login_():
 		dbs = session_maker()
 		sess = b.request.environ.get('beaker.session')
 		username = data['username']
-		if username == k_trial_user_prefix:
-			user = db.get_trial_user(dbs, k_trial_user_prefix)
-			sess['trial'] = 1
-		else:
-			user = db.authenticate(dbs, data['username'], data['password'])
-			if not user:
-				return b.template('login', login_detail = 'Login failed... try again?')
-
+		user = db.authenticate(dbs, data['username'], data['password'])
 		if user:
 			sess['username'] = user.username
 			sess.save()
 			b.redirect(gurl(sess.get('after_login', 'home')))
+		else:
+			return b.template('login', login_detail = 'Login failed... try again?')
 
 	except MultipleInvalid as e:
 		return b.template('login', flash = [error.msg for error in e.errors])
-		
+
+
+@a.post
+def login_trial_():
+	dbs = session_maker()
+	sess = b.request.environ.get('beaker.session')
+	user = db.get_trial_user(dbs)
+	sess['username'] = user.username
+	sess['trial'] = 1
+	sess.save()
+	b.redirect(gurl(sess.get('after_login', 'home')))
 	
 
 @a.get
@@ -223,6 +227,14 @@ def new_user_():
 
 @a.get
 @auth
+def math_stats():
+	dbs = session_maker()
+	sess = b.request.environ.get('beaker.session')
+	stats = db.get_math_stats(dbs, sess['username'])
+	return b.template('math_stats', username = sess['username'], stats = stats)
+
+@a.get
+@auth
 def preferences():
 	dbs = session_maker()
 	sess = b.request.environ.get('beaker.session')
@@ -246,31 +258,37 @@ def preferences_():
 	b.redirect(gurl('home')) # Don't do this within the "try:", above or the redirect (using exceptions won't work b/c it'll be caught as exception!
 
 
-@a.route
-def input():
-	return b.template('math', ws_method = 'ws_input', prompt = k_prompt)
-
-@a.route
-def add():
-	ac, no_source_length = make_audios()
-	return b.template('math', ws_method = 'ws_add', audio_controls = ac, audio_count = no_source_length, prompt = k_prompt)
-
-@a.route
-def subtract():
-	return b.template('math', ws_method = 'ws_subtract', prompt = k_prompt)
-
-@a.route # must be first!
-@auth
-def multiply():
+def _math(ws_method, again):
 	sess = b.request.environ.get('beaker.session')
 	dbs = session_maker()
 	prefs = db.get_preferences(dbs, sess['username'])
 	ac, no_source_length = make_audios()
-	return b.template('math', ws_method = 'ws_multiply', intro = k_intro, trial = sess.get('trial', 0), again = 'multiply', timer_minutes = prefs.time_minutes, counter = prefs.count, audio_controls = ac, audio_count = no_source_length)
+	return b.template('math', ws_method = ws_method, intro = k_math_intro, trial = sess.get('trial', 0), again = gurl(again), timer_minutes = prefs.time_minutes, counter = prefs.count, audio_controls = ac, audio_count = no_source_length)
+
+@a.route # must be first! Use @get instead?
+@auth
+def input():
+	return b.template('math', ws_method = 'ws_input', prompt = k_prompt)
 
 @a.route
+@auth
+def add():
+	return _math('ws_add', 'add') # use inspect.stack()[0][3] instead of 'multiply'?
+
+@a.route
+@auth
+def subtract():
+	return _math('ws_subtract', 'subtract')
+
+@a.route # must be first!
+@auth
+def multiply():
+	return _math('ws_multiply', 'multiply')
+
+@a.route
+@auth
 def divide():
-	return b.template('math', ws_method = 'ws_divide', prompt = k_prompt)
+	return _math('ws_divide', 'divide')
 
 
 # Practicer classes sent to core:
