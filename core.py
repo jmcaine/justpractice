@@ -100,7 +100,7 @@ def practice_input(dbs, communicator, user, min, max):
 	# Re-fetch, to get default values:
 	records = q.all()
 	# Now run the practice:
-	_practice(dbs, communicator, records, 1500) # threshold of 1.5 seconds for input
+	_practice(dbs, communicator, records, 2500) # threshold of 2.5 seconds for input
 
 def practice_arithmetic(dbs, communicator, user, operation, min_x, max_x, min_y, max_y):
 	# Get or add pertinent arithmetic records:

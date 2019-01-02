@@ -1,5 +1,7 @@
 % rebase('_base.tpl', title = 'Stats')
 
+<p><a href="home">Go Back Home</a> - to manage preferences, practice something, etc.</p>
+
 <p>
 Stats for {{username}}:
 </p>

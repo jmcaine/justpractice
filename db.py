@@ -101,6 +101,17 @@ def add_user(dbs, username, password, email = None, commit = True):
 	dbs.add(user)
 	if commit:
 		dbs.commit() # consider making sure autoflush is on, or calling flush(), or read http://skien.cc/blog/2014/02/06/sqlalchemy-and-race-conditions-follow-up/
+		dbs.refresh(user)
+	return user
+
+def update_user(dbs, temp_username, new_username, password, email):
+	user = get_user(dbs, temp_username)
+	user.username = new_username
+	salt = urandom(32)
+	user.salt = salt
+	user.password = _hash(password, salt)
+	dbs.commit()
+	dbs.refresh(user)
 	return user
 
 def get_user(dbs, username):
@@ -115,9 +126,11 @@ def get_preferences(dbs, username):
 		raise Exception("Multiple Preferences records for user (id = %d); only one allowed" % user_id);
 	elif len(prefs) == 0:
 		# Create record w/ defaults:
-		prefs = Preferences(user_id = user_id)
+		user = get_user(dbs, username)
+		prefs = Preferences(user_id = user.id)
 		dbs.add(prefs)
 		dbs.commit()
+		dbs.refresh(prefs)
 	return prefs
 
 def set_preferences(dbs, username, preferences):

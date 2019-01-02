@@ -1,6 +1,8 @@
 % rebase('_base.tpl', title = 'Arithmetic')
 
-<p><button id="login_try">Just try...</button> - if you want to just try without creating a username</p>
+<form action="login_trial_" method="post">
+<p><input type="submit" value="Just try..." /> - if you want to just try without creating a username</p>
+</form>
 
 <p class="tilt_label">OR...</p>
 

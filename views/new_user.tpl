@@ -12,7 +12,7 @@
 
 <p>First, create a one-word username for yourself (lowercase, no spaces)...</p>
 <label>New username:
-<input name="username" id="username" type="text" required autofocus placeholder="Enter new username" pattern="[a-z0-9_]+" value="{{get('values')}}" />
+<input name="username" id="username" type="text" required autofocus placeholder="Enter new username" pattern="[a-z0-9_]+" value="{{get('values', {}).get('username')}}" />
 <span class="invalid_message">{{vms['username']}}</span>
 </label>
 
@@ -31,7 +31,7 @@
 
 <p>Finally, enter an email address that can be used if you ever need a password reset (optional, but this may be very useful someday!)...</p>
 <label>Email address:
-<input name="email" id="email" type="email" placeholder="Enter email address" />
+<input name="email" id="email" type="email" placeholder="Enter email address" value="{{get('values', {}).get('email')}}" />
 <span class="invalid_message">{{vms['email']}}</span>
 </label>
 

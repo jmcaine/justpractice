@@ -31,6 +31,14 @@ k_js_path = k_root_path + 'js'
 k_css_path = k_root_path + 'css'
 k_audio_path = k_root_path + 'audio'
 
+# For local testing:
+k_url_prefix = ''
+k_ws_protocol = 'ws' 
+k_ws_url_prefix = ''
+# For ssl production:
+#k_url_prefix = '/practice'
+#k_ws_protocol = 'wss' 
+#k_ws_url_prefix = '/practice_ws'
 
 beaker_opts = {
     'session.type': 'memory',
@@ -46,6 +54,12 @@ db_engine, session_maker = db.create_engine_sm(db.url, False)
 logging.basicConfig(format = '[%(asctime)s] %(levelname)s: %(message)s', level = logging.DEBUG)
 log = logging.getLogger(__name__)
 
+# Utils:
+# ------------------------------------------------------------
+
+#femplate = pass #!!!
+gurl = lambda name: k_url_prefix + a.get_url(name)
+
 def make_audios():
 	ac = ''
 	no_path = os.path.join(k_audio_path, 'no')
@@ -58,12 +72,6 @@ def make_audios():
 		ac += b.template('audio_control', id = 'audio_yes_%d' % (x + 1), source = os.path.join('audio', 'yes', yes_sources[x]))
 	return ac, len(no_sources)
 
-
-# Short-cuts:
-# ------------------------------------------------------------
-
-#femplate = pass #!!!
-gurl = lambda name: a.get_url(name)
 
 # Validation:
 # ------------------------------------------------------------
@@ -212,10 +220,14 @@ def new_user_():
 		s(dict(p))
 		s2(dict(p))
 		# Save:
-		dbs = session_maker()
-		user = db.add_user(dbs, p.username, p.password, p.email)
-		# "Log in":
 		sess = b.request.session
+		dbs = session_maker()
+		if sess.get('trial') == 1:
+			user = db.update_user(dbs, sess['username'], p.username, p.password, p.email)
+			sess['trial'] = 0 # turn it back off
+		else:
+			user = db.add_user(dbs, p.username, p.password, p.email)
+		# "Log in":
 		sess['username'] = user.username
 		sess.save()
 		# Move on:
@@ -223,7 +235,7 @@ def new_user_():
 	except IntegrityError as e:
 		return b.template('new_user', values = p, vms = k_new_user_vms, flash = (k_user_exists,)) #TODO: when re-presenting form, keep all old values (except password)
 	except MultipleInvalid as e:
-		return b.template('new_user', vms = k_new_user_vms, flash = [error.msg for error in e.errors])
+		return b.template('new_user', values = dict(p), vms = k_new_user_vms, flash = [error.msg for error in e.errors])
 
 @a.get
 @auth
@@ -239,6 +251,7 @@ def preferences():
 	dbs = session_maker()
 	sess = b.request.environ.get('beaker.session')
 	prefs = db.get_preferences(dbs, sess['username']).__dict__
+	log.debug('!!! prefs: ' + str(prefs))
 	return b.template('preferences', username = sess['username'], values = prefs)
 
 @a.post
@@ -263,17 +276,17 @@ def _math(ws_method, again):
 	dbs = session_maker()
 	prefs = db.get_preferences(dbs, sess['username'])
 	ac, no_source_length = make_audios()
-	return b.template('math', ws_method = ws_method, intro = k_math_intro, trial = sess.get('trial', 0), again = gurl(again), timer_minutes = prefs.time_minutes, counter = prefs.count, audio_controls = ac, audio_count = no_source_length)
+	return b.template('math', ws_protocol = k_ws_protocol, ws_url_prefix = k_ws_url_prefix, ws_method = ws_method, intro = k_math_intro, trial = sess.get('trial', 0), again = gurl(again), timer_minutes = prefs.time_minutes, counter = prefs.count, audio_controls = ac, audio_count = no_source_length)
 
 @a.route # must be first! Use @get instead?
 @auth
 def input():
-	return b.template('math', ws_method = 'ws_input', prompt = k_prompt)
+	return _math('ws_input', 'input')
 
 @a.route
 @auth
 def add():
-	return _math('ws_add', 'add') # use inspect.stack()[0][3] instead of 'multiply'?
+	return _math('ws_add', 'add') # use inspect.stack()[0][3] instead of 'add'?
 
 @a.route
 @auth
@@ -410,15 +423,15 @@ def _practice(practicer):
 
 @a.route
 def ws_input():
-	_practice(Input_Practicer(0, 9))
+	_practice(Input_Practicer(0, 39))
 
 @a.route
 def ws_add():
-	_practice(Operation_Add(1, 7, 0, 7))
+	_practice(Operation_Add(1, 15, 0, 15))
 
 @a.route
 def ws_subtract():
-	_practice(Operation_Subtract(1, 7, 0, 7))
+	_practice(Operation_Subtract(1, 15, 0, 15))
 
 @a.route
 def ws_multiply():
@@ -426,7 +439,7 @@ def ws_multiply():
 
 @a.route
 def ws_divide():
-	_practice(Operation_Divide(1, 7, 0, 7, 30))
+	_practice(Operation_Divide(3, 15, 0, 15))
 
 @a.route
 def ws_all():
