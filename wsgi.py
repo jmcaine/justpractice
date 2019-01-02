@@ -335,7 +335,6 @@ class Arithmetic_Practicer:
 		self.max_y = max_y
 
 	def practice(self, communicator, user, dbs):
-		#!core.practice_operation(user, self.min_x, self.max_x, self.min_y, self.max_y, self.time, self, self.operation, dbs)
 		core.practice_arithmetic(dbs, communicator, user, self.operation(), self.min_x, self.max_x, self.min_y, self.max_y)
 
 class Operation_Add(Arithmetic_Practicer):
@@ -343,7 +342,6 @@ class Operation_Add(Arithmetic_Practicer):
 	def operation():
 		return db.Op.addition
 
-	#!def send(self, record):
 	@staticmethod
 	def pack_message(record):
 		return {'message': 'math', 'prompt': '%d + %d:' % (record.x, record.y), 'answer': str(record.x + record.y)}
@@ -424,7 +422,6 @@ def ws_subtract():
 
 @a.route
 def ws_multiply():
-	#_practice(Operation_Multiply(1, 15, 0, 15, 30, db.Op.multiplication))
 	_practice(Operation_Multiply(2, 15, 1, 15))
 
 @a.route

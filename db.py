@@ -1,18 +1,19 @@
 #!/usr/bin/python
 
-from enum import Enum as PyEnum
-from os import urandom
-import hashlib
-from datetime import datetime
-import string
-import random
-
 from sqlalchemy import create_engine
 from sqlalchemy import Column, Integer, String, Enum, DateTime
 from sqlalchemy import UniqueConstraint, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker, relationship
+
+from enum import Enum as PyEnum
+from os import urandom
+import hashlib
+from datetime import datetime
+import string
+import random
+from collections import OrderedDict
 
 url = 'sqlite:///test.db' # deport!
 Base = declarative_base()
@@ -141,8 +142,6 @@ def print_users_performance(user):
 	for p in user.performance:
 		print('x:%d\ty:%d\top:%s\ts1:%4.0f\ts2:%4.0f\ts3:%4.0f\ts4:%4.0f\ttrials:%s\thits:%s\tesms:%4.0f\trsms:%4.0f' % (p.x, p.y, p.operation, p.speed_1_ms, p.speed_2_ms, p.speed_3_ms, p.speed_4_ms, p.trials, p.hits, p.early_speed_ms, p.recent_speed_ms))
 
-
-from collections import OrderedDict
 
 def get_math_stats(dbs, username):
 	user = get_user(dbs, username)

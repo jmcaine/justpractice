@@ -86,7 +86,6 @@ def build_batch(records, threshold):
 	random.shuffle(batch)
 	return batch
 
-#!def practice_input(user, min, max, time, practicer_function, dbs = None):
 def practice_input(dbs, communicator, user, min, max):
 	# Get or add pertinent plain input records:
 	#q = dbs.query(db.Performance).filter_by(user = user).filter(db.Performance.x >= min).filter(db.Performance.x <= max).filter(db.Performance.operation == db.Op.input).order_by(db.Performance.recent_speed_ms.desc()).order_by(db.Performance.id)
@@ -103,7 +102,6 @@ def practice_input(dbs, communicator, user, min, max):
 	# Now run the practice:
 	_practice(dbs, communicator, records, 1500) # threshold of 1.5 seconds for input
 
-#!def practice_operation(user, min_x, max_x, min_y, max_y, time, practicer_function, operation, dbs = None):
 def practice_arithmetic(dbs, communicator, user, operation, min_x, max_x, min_y, max_y):
 	# Get or add pertinent arithmetic records:
 	#q = dbs.query(db.Performance).filter_by(user = user).filter(db.Performance.x >= min_x).filter(db.Performance.x <= max_x).filter(db.Performance.y >= min_y).filter(db.Performance.y <= max_y).filter(db.Performance.operation == operation).order_by(db.Performance.recent_speed_ms.desc()).order_by(db.Performance.id)
