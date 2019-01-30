@@ -116,7 +116,7 @@ def practice_arithmetic(dbs, communicator, user, operation, min_x, max_x, min_y,
 	# Re-fetch, to get default values:
 	records = q.all()
 	# Now run the practice:
-	_practice(dbs, communicator, records, 4000) # threshold of 4 seconds for arithmetic operations
+	_practice(dbs, communicator, records, 5000) # threshold of 4 seconds for arithmetic operations
 
 def get_preferences(user, dbs = None):
 	if not dbs:
