@@ -251,7 +251,6 @@ def preferences():
 	dbs = session_maker()
 	sess = b.request.environ.get('beaker.session')
 	prefs = db.get_preferences(dbs, sess['username']).__dict__
-	log.debug('!!! prefs: ' + str(prefs))
 	return b.template('preferences', username = sess['username'], values = prefs)
 
 @a.post

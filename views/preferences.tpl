@@ -34,10 +34,10 @@ Edit the preferences for user <b>{{ username }}</b> below....
 <legend> Starting (minimum) values for arithmetic practice </legend>
 <label>
 	Starting minimum "x" value:
-	<input type="number" name="start_x" min="0" max="60" step="1" value="{{values['start_x']}}" />
+	<input type="number" name="start_x" min="0" max="60" step="1" value="{{values.get('start_x', 2)}}" />
 	<br>
 	Starting minimum "y" value:
-	<input type="number" name="start_y" min="0" max="60" step="1" value="{{values['start_y']}}" />
+	<input type="number" name="start_y" min="0" max="60" step="1" value="{{values.get('start_y', 2)}}" />
 </label>
 </fieldset>
 
