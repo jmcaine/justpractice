@@ -28,6 +28,18 @@ Edit the preferences for user <b>{{ username }}</b> below....
 		</label>
 		</fieldset>
 
+<p>What numbers would you like to start at, minimum, for arithmetic practice?</p>
+
+<fieldset class="small_fieldset">
+<legend> Starting (minimum) values for arithmetic practice </legend>
+<label>
+	Starting minimum "x" value:
+	<input type="number" name="start_x" min="0" max="60" step="1" value="{{values['start_x']}}" />
+	<br>
+	Starting minimum "y" value:
+	<input type="number" name="start_y" min="0" max="60" step="1" value="{{values['start_y']}}" />
+</label>
+</fieldset>
 
 <input type="submit" value="Go!" />
 

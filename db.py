@@ -70,6 +70,8 @@ class Preferences(SABaseMixin, Base):
 	user_id = Column(Integer, ForeignKey('user.id'))
 	time_minutes = Column(Integer, default = 0)
 	count = Column(Integer, default = 30)
+	start_x = Column(Integer, default = 2)
+	start_y = Column(Integer, default = 2)
 	
 
 class Descriptive_Exception(Exception):
@@ -138,6 +140,8 @@ def set_preferences(dbs, username, preferences):
 	p = get_preferences(dbs, username)
 	p.time_minutes = preferences.time_minutes
 	p.count = preferences.count
+	p.start_x = preferences.start_x
+	p.start_y = preferences.start_y
 	dbs.commit()
 
 def get_trial_user(dbs):

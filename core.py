@@ -105,6 +105,11 @@ def practice_input(dbs, communicator, user, min, max):
 def practice_arithmetic(dbs, communicator, user, operation, min_x, max_x, min_y, max_y):
 	# Get or add pertinent arithmetic records:
 	#q = dbs.query(db.Performance).filter_by(user = user).filter(db.Performance.x >= min_x).filter(db.Performance.x <= max_x).filter(db.Performance.y >= min_y).filter(db.Performance.y <= max_y).filter(db.Performance.operation == operation).order_by(db.Performance.recent_speed_ms.desc()).order_by(db.Performance.id)
+	prefs = db.get_preferences(dbs, user.username)
+	min_x = max(min_x, prefs.start_x)
+	print("min_x: %d" % min_x)
+	min_y = max(min_y, prefs.start_y)
+	print("min_y: %d" % min_y)
 	q = dbs.query(db.Performance).filter_by(user = user).filter(db.Performance.x >= min_x).filter(db.Performance.x <= max_x).filter(db.Performance.y >= min_y).filter(db.Performance.y <= max_y).filter(db.Performance.operation == operation).order_by(db.Performance.id)
 	records = q.all()
 	existing_combos = [(r.x, r.y) for r in records]
@@ -117,10 +122,4 @@ def practice_arithmetic(dbs, communicator, user, operation, min_x, max_x, min_y,
 	records = q.all()
 	# Now run the practice:
 	_practice(dbs, communicator, records, 5000) # threshold of 4 seconds for arithmetic operations
-
-def get_preferences(user, dbs = None):
-	if not dbs:
-		dbs = session_maker()
-	return db.get_preferences(dbs, user_id)
-
 

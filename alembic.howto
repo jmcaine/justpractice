@@ -1,0 +1,5 @@
+
+
+alembic revision --autogenerate -m "added starting-x and starting-y as user prefs"
+alembic upgrade head
+git add alembic/versions/6628b83f5930_added_starting_x_and_starting_y_as_user_.py
