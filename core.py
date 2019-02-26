@@ -106,10 +106,10 @@ def practice_arithmetic(dbs, communicator, user, operation, min_x, max_x, min_y,
 	# Get or add pertinent arithmetic records:
 	#q = dbs.query(db.Performance).filter_by(user = user).filter(db.Performance.x >= min_x).filter(db.Performance.x <= max_x).filter(db.Performance.y >= min_y).filter(db.Performance.y <= max_y).filter(db.Performance.operation == operation).order_by(db.Performance.recent_speed_ms.desc()).order_by(db.Performance.id)
 	prefs = db.get_preferences(dbs, user.username)
-	min_x = max(min_x, prefs.start_x)
-	print("min_x: %d" % min_x)
-	min_y = max(min_y, prefs.start_y)
-	print("min_y: %d" % min_y)
+	if prefs.start_x:
+		min_x = max(min_x, prefs.start_x)
+	if prefs.start_y:
+		min_y = max(min_y, prefs.start_y)
 	q = dbs.query(db.Performance).filter_by(user = user).filter(db.Performance.x >= min_x).filter(db.Performance.x <= max_x).filter(db.Performance.y >= min_y).filter(db.Performance.y <= max_y).filter(db.Performance.operation == operation).order_by(db.Performance.id)
 	records = q.all()
 	existing_combos = [(r.x, r.y) for r in records]
